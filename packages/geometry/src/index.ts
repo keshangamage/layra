@@ -1,10 +1,5 @@
-/**
- * Pure geometry for Layra: polygon operations, mitred wall offsetting,
- * extrusion, and floor triangulation.
- *
- * Everything here takes plain data and returns plain data. No React, no
- * three.js scene objects — the renderer stays swappable.
- */
+// Pure geometry: polygon ops, mitred offsetting, extrusion, triangulation.
+// Plain data in, plain typed arrays out. No React, no three.js scene objects.
 
 export {
   EPSILON,
@@ -23,6 +18,7 @@ export {
 } from "./math";
 
 export {
+  bounds,
   ensureCCW,
   isCCW,
   perimeter,

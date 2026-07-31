@@ -3,7 +3,7 @@ import { leftNormal, normalize, sub } from "./math";
 import { ensureCCW } from "./polygon";
 import { wallLoops, type OffsetOptions } from "./offset";
 
-/** Renderer-agnostic mesh data. Consumers copy these straight into buffers. */
+/** Renderer-agnostic mesh data, copied straight into buffers. */
 export interface MeshData {
   positions: Float32Array;
   normals: Float32Array;
@@ -15,27 +15,18 @@ export interface ExtrudeOptions extends OffsetOptions {
   thickness: number;
 }
 
-/** Vertices emitted per wall segment: outer face, inner face, top cap — 4 each. */
+/** Outer face, inner face, top cap — 4 vertices each. */
 export const VERTICES_PER_SEGMENT = 12;
 
-/** Indices emitted per wall segment: 3 quads × 2 triangles × 3 indices. */
+/** 3 quads x 2 triangles x 3 indices. */
 export const INDICES_PER_SEGMENT = 18;
 
-/**
- * Accumulates quads into flat arrays.
- *
- * Vertices are never shared between faces, so each face keeps a flat normal
- * rather than averaging into a rounded corner at the wall edges.
- */
 class MeshBuilder {
   readonly positions: number[] = [];
   readonly normals: number[] = [];
   readonly indices: number[] = [];
 
-  /**
-   * Adds a quad `a → b → c → d`, wound counter-clockwise as seen from the
-   * direction `normal` points.
-   */
+  /** a-b-c-d wound CCW as seen from where `normal` points. */
   addQuad(
     a: readonly [number, number, number],
     b: readonly [number, number, number],
@@ -61,14 +52,8 @@ class MeshBuilder {
 }
 
 /**
- * Extrudes a closed centerline polygon into wall geometry.
- *
- * Emits three faces per segment — outer, inner, and the top cap. The bottom cap
- * is deliberately omitted: it sits at Y=0 underneath the floor mesh and is
- * never visible, so drawing it would be pure overdraw.
- *
- * Invariant relied on by the tests: exactly `VERTICES_PER_SEGMENT` vertices and
- * `INDICES_PER_SEGMENT` indices per segment.
+ * Extrudes a centerline polygon into walls. Vertices are unshared so faces keep
+ * flat normals. The bottom cap is skipped — it sits under the floor.
  */
 export function extrudeWalls(
   centerline: readonly Vec2[],
@@ -76,7 +61,6 @@ export function extrudeWalls(
 ): MeshData {
   const { height, thickness } = options;
   const builder = new MeshBuilder();
-
   if (centerline.length < 3) return builder.build();
 
   const polygon = ensureCCW(centerline);
@@ -85,16 +69,12 @@ export function extrudeWalls(
 
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-
     const innerA = inner[i]!;
     const innerB = inner[j]!;
     const outerA = outer[i]!;
     const outerB = outer[j]!;
-
-    // Inward normal of this segment, from the centerline direction.
     const inward = leftNormal(normalize(sub(polygon[j]!, polygon[i]!)));
 
-    // Outer face — normal points away from the room.
     builder.addQuad(
       [outerB.x, 0, outerB.z],
       [outerA.x, 0, outerA.z],
@@ -103,7 +83,6 @@ export function extrudeWalls(
       [-inward.x, 0, -inward.z],
     );
 
-    // Inner face — normal points into the room.
     builder.addQuad(
       [innerA.x, 0, innerA.z],
       [innerB.x, 0, innerB.z],
@@ -112,7 +91,6 @@ export function extrudeWalls(
       [inward.x, 0, inward.z],
     );
 
-    // Top cap.
     builder.addQuad(
       [innerA.x, height, innerA.z],
       [innerB.x, height, innerB.z],
