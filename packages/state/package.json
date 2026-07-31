@@ -1,0 +1,16 @@
+{
+  "name": "@layra/state",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@layra/types": "workspace:*",
+    "zustand": "5.0.14"
+  }
+}
