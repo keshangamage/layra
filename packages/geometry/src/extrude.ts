@@ -15,7 +15,7 @@ export interface ExtrudeOptions extends OffsetOptions {
   thickness: number;
 }
 
-/** Outer face, inner face, top cap — 4 vertices each. */
+/** Outer face, inner face, top cap - 4 vertices each. */
 export const VERTICES_PER_SEGMENT = 12;
 
 /** 3 quads x 2 triangles x 3 indices. */
@@ -53,7 +53,7 @@ class MeshBuilder {
 
 /**
  * Extrudes a centerline polygon into walls. Vertices are unshared so faces keep
- * flat normals. The bottom cap is skipped — it sits under the floor.
+ * flat normals. The bottom cap is skipped - it sits under the floor.
  */
 export function extrudeWalls(
   centerline: readonly Vec2[],

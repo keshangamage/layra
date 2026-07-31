@@ -4,7 +4,7 @@ import { ensureCCW } from "./polygon";
 import { wallLoops, type OffsetOptions } from "./offset";
 import type { MeshData } from "./extrude";
 
-// `three` is used here only for ShapeUtils and Vector2 — pure math helpers,
+// `three` is used here only for ShapeUtils and Vector2 - pure math helpers,
 // not scene objects, so the renderer stays swappable.
 
 /** Flat mesh at Y=0. */

@@ -15,7 +15,7 @@ export function Toolbar() {
         : draftCount < 3
           ? `${draftCount} placed · keep clicking`
           : "Enter or click the first corner to close · Esc to cancel"
-      : "Drag to orbit · scroll to zoom";
+      : "Drag a corner handle to reshape the room";
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-950 px-4">

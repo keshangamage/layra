@@ -2,7 +2,7 @@ import type { Vec2 } from "@layra/types";
 import { EPSILON, cross, sub } from "./math";
 
 /**
- * Positive means CCW in the (x, z) plane — which looks clockwise from a
+ * Positive means CCW in the (x, z) plane - which looks clockwise from a
  * top-down camera, since +z points down the screen.
  */
 export function signedArea(points: readonly Vec2[]): number {
@@ -46,7 +46,7 @@ function sharesEndpoint(a1: Vec2, a2: Vec2, p: Vec2): boolean {
   );
 }
 
-/** Touching at a shared endpoint doesn't count — adjacent edges always do that. */
+/** Touching at a shared endpoint doesn't count - adjacent edges always do that. */
 export function segmentsIntersect(
   a1: Vec2,
   a2: Vec2,
