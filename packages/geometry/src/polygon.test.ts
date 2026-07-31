@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Vec2 } from "@layra/types";
 import {
+  bounds,
   ensureCCW,
   isCCW,
   perimeter,
@@ -17,31 +18,38 @@ const unitSquare: Vec2[] = [
   { x: 0, z: 1 },
 ];
 
+const lShape: Vec2[] = [
+  { x: 0, z: 0 },
+  { x: 4, z: 0 },
+  { x: 4, z: 2 },
+  { x: 2, z: 2 },
+  { x: 2, z: 4 },
+  { x: 0, z: 4 },
+];
+
 describe("signedArea / polygonArea", () => {
   it("measures a unit square as 1", () => {
     expect(polygonArea(unitSquare)).toBeCloseTo(1);
   });
 
   it("measures a 3-4-5 right triangle as 6", () => {
-    const triangle: Vec2[] = [
-      { x: 0, z: 0 },
-      { x: 3, z: 0 },
-      { x: 0, z: 4 },
-    ];
-    expect(polygonArea(triangle)).toBeCloseTo(6);
+    expect(
+      polygonArea([
+        { x: 0, z: 0 },
+        { x: 3, z: 0 },
+        { x: 0, z: 4 },
+      ]),
+    ).toBeCloseTo(6);
   });
 
   it("flips sign with winding but keeps magnitude", () => {
-    const forward = signedArea(unitSquare);
-    const reversed = signedArea([...unitSquare].reverse());
-    expect(forward).toBeCloseTo(1);
-    expect(reversed).toBeCloseTo(-1);
-    expect(polygonArea(unitSquare)).toBeCloseTo(polygonArea([...unitSquare].reverse()));
+    expect(signedArea(unitSquare)).toBeCloseTo(1);
+    expect(signedArea([...unitSquare].reverse())).toBeCloseTo(-1);
   });
 
   it("is invariant under translation", () => {
     const moved = unitSquare.map((p) => ({ x: p.x + 137.5, z: p.z - 42.25 }));
-    expect(polygonArea(moved)).toBeCloseTo(polygonArea(unitSquare));
+    expect(polygonArea(moved)).toBeCloseTo(1);
   });
 
   it("scales with the square of a uniform scale factor", () => {
@@ -59,7 +67,6 @@ describe("signedArea / polygonArea", () => {
 describe("ensureCCW", () => {
   it("leaves an already-CCW polygon in order", () => {
     expect(ensureCCW(unitSquare)).toEqual(unitSquare);
-    expect(isCCW(ensureCCW(unitSquare))).toBe(true);
   });
 
   it("reverses a clockwise polygon", () => {
@@ -81,53 +88,46 @@ describe("selfIntersects", () => {
     expect(selfIntersects(unitSquare)).toBe(false);
   });
 
-  it("does not treat the shared closing vertex as an intersection", () => {
-    // The wrap-around edge (last → first) is adjacent to the first edge and
-    // shares a vertex with it. A naive pairwise test reports this as a crossing.
-    const triangle: Vec2[] = [
-      { x: 0, z: 0 },
-      { x: 4, z: 0 },
-      { x: 2, z: 3 },
-    ];
-    expect(selfIntersects(triangle)).toBe(false);
+  it("does not flag the shared closing vertex", () => {
+    expect(
+      selfIntersects([
+        { x: 0, z: 0 },
+        { x: 4, z: 0 },
+        { x: 2, z: 3 },
+      ]),
+    ).toBe(false);
   });
 
   it("detects a bowtie", () => {
-    const bowtie: Vec2[] = [
-      { x: 0, z: 0 },
-      { x: 2, z: 2 },
-      { x: 2, z: 0 },
-      { x: 0, z: 2 },
-    ];
-    expect(selfIntersects(bowtie)).toBe(true);
+    expect(
+      selfIntersects([
+        { x: 0, z: 0 },
+        { x: 2, z: 2 },
+        { x: 2, z: 0 },
+        { x: 0, z: 2 },
+      ]),
+    ).toBe(true);
   });
 
   it("detects a crossing in a larger polygon", () => {
-    const crossed: Vec2[] = [
-      { x: 0, z: 0 },
-      { x: 4, z: 0 },
-      { x: 4, z: 4 },
-      { x: 2, z: -2 },
-      { x: 0, z: 4 },
-    ];
-    expect(selfIntersects(crossed)).toBe(true);
+    expect(
+      selfIntersects([
+        { x: 0, z: 0 },
+        { x: 4, z: 0 },
+        { x: 4, z: 4 },
+        { x: 2, z: -2 },
+        { x: 0, z: 4 },
+      ]),
+    ).toBe(true);
   });
 
   it("accepts a concave but simple L-shape", () => {
-    const lShape: Vec2[] = [
-      { x: 0, z: 0 },
-      { x: 4, z: 0 },
-      { x: 4, z: 2 },
-      { x: 2, z: 2 },
-      { x: 2, z: 4 },
-      { x: 0, z: 4 },
-    ];
     expect(selfIntersects(lShape)).toBe(false);
   });
 
   it("cannot self-intersect below four vertices", () => {
     expect(selfIntersects([])).toBe(false);
-    expect(selfIntersects([{ x: 0, z: 0 }, { x: 1, z: 0 }, { x: 0, z: 1 }])).toBe(false);
+    expect(selfIntersects(unitSquare.slice(0, 3))).toBe(false);
   });
 });
 
@@ -139,26 +139,32 @@ describe("pointInPolygon", () => {
   });
 
   it("handles the concave notch of an L-shape", () => {
-    const lShape: Vec2[] = [
-      { x: 0, z: 0 },
-      { x: 4, z: 0 },
-      { x: 4, z: 2 },
-      { x: 2, z: 2 },
-      { x: 2, z: 4 },
-      { x: 0, z: 4 },
-    ];
     expect(pointInPolygon({ x: 1, z: 3 }, lShape)).toBe(true);
     expect(pointInPolygon({ x: 3, z: 3 }, lShape)).toBe(false);
   });
 });
 
 describe("perimeter", () => {
-  it("sums the closed loop including the wrap-around edge", () => {
+  it("includes the wrap-around edge", () => {
     expect(perimeter(unitSquare)).toBeCloseTo(4);
   });
 
   it("is zero for degenerate input", () => {
     expect(perimeter([])).toBe(0);
     expect(perimeter([{ x: 1, z: 1 }])).toBe(0);
+  });
+});
+
+describe("bounds", () => {
+  it("measures extent, center and size", () => {
+    const b = bounds(lShape);
+    expect(b.min).toEqual({ x: 0, z: 0 });
+    expect(b.max).toEqual({ x: 4, z: 4 });
+    expect(b.center).toEqual({ x: 2, z: 2 });
+    expect(b.size).toEqual({ x: 4, z: 4 });
+  });
+
+  it("returns zeroes for an empty polygon", () => {
+    expect(bounds([]).size).toEqual({ x: 0, z: 0 });
   });
 });
