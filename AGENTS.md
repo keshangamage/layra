@@ -16,3 +16,9 @@ a sign choice, a reason. Otherwise leave it out.
 // Left normal points into the room for CCW input.
 export function leftNormal(dir: Vec2): Vec2 {
 ```
+
+# Commit messages
+
+Subject line plus at most two or three short lines of body. Say what changed,
+not how it was built or why every decision was made. No bullet lists, no test
+counts, no paragraphs.
