@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "check-types": "tsc --noEmit",
+    "test": "vitest run",
     "lint": "eslint"
   },
   "dependencies": {
@@ -24,13 +25,17 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "0.185.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "happy-dom": "^20.11.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "4.1.10"
   }
 }

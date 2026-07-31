@@ -3,31 +3,37 @@
 import { useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
-import type { Vec2 } from "@layra/types";
-import { bounds, ensureCCW } from "@layra/geometry";
+import { useShallow } from "zustand/react/shallow";
+import { bounds } from "@layra/geometry";
+import { currentWallSettings, livePolygon } from "@layra/state";
+import { useEditor } from "@/state/editor";
 import { Walls } from "./Walls";
 import { Floor } from "./Floor";
+import { DrawController } from "./DrawController";
+import { DraftPolyline } from "./DraftPolyline";
 
-/** Placeholder until draw mode lands. The 30 degree corner exercises mitring. */
-const DEMO_ROOM: Vec2[] = [
-  { x: -2.5, z: -2 },
-  { x: 2.5, z: -2 },
-  { x: 3.5, z: 0.5 },
-  { x: 2.5, z: 2 },
-  { x: -2.5, z: 2 },
-];
+function Room() {
+  // livePolygon builds a new array mid-drag, so compare by element identity.
+  const polygon = useEditor(useShallow(livePolygon));
+  const height = useEditor((state) => currentWallSettings(state).height);
+  const thickness = useEditor((state) => currentWallSettings(state).thickness);
 
-interface SceneProps {
-  wallHeight: number;
-  wallThickness: number;
+  if (polygon.length < 3) return null;
+
+  return (
+    <>
+      <Floor polygon={polygon} thickness={thickness} />
+      <Walls polygon={polygon} height={height} thickness={thickness} />
+    </>
+  );
 }
 
-export default function Scene({ wallHeight, wallThickness }: SceneProps) {
-  const polygon = useMemo(() => ensureCCW(DEMO_ROOM), []);
+export default function Scene() {
+  const polygon = useEditor((state) => state.scene.room.polygon);
   const extent = useMemo(() => bounds(polygon), [polygon]);
 
   // Frame the shadow camera to the room so shadows stay sharp.
-  const shadowRadius = Math.max(extent.size.x, extent.size.z);
+  const shadowRadius = Math.max(extent.size.x, extent.size.z, 4);
 
   return (
     <Canvas
@@ -50,8 +56,9 @@ export default function Scene({ wallHeight, wallThickness }: SceneProps) {
         shadow-camera-far={40}
       />
 
-      <Floor polygon={polygon} thickness={wallThickness} />
-      <Walls polygon={polygon} height={wallHeight} thickness={wallThickness} />
+      <Room />
+      <DraftPolyline />
+      <DrawController />
 
       <Grid
         infiniteGrid
