@@ -7,10 +7,15 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@layra/geometry": "workspace:*",
     "@layra/types": "workspace:*",
     "zustand": "5.0.14"
+  },
+  "devDependencies": {
+    "vitest": "4.1.10"
   }
 }

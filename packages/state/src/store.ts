@@ -1,0 +1,186 @@
+import { createStore, type StoreApi } from "zustand/vanilla";
+import { emptyScene, type Scene, type Vec2 } from "@layra/types";
+import { selfIntersects } from "@layra/geometry";
+import {
+  closeRoom,
+  moveVertex,
+  setWallSettings,
+  wallSettingsOf,
+  type Command,
+  type WallSettings,
+} from "./commands";
+
+export type Mode = "draw" | "edit";
+
+export interface SnapSettings {
+  /** Metres. */
+  grid: number;
+  /** Radians. */
+  angle: number;
+}
+
+export interface EditorState {
+  scene: Scene;
+  past: Command[];
+  future: Command[];
+  mode: Mode;
+
+  /** Vertices placed so far in draw mode. */
+  draft: Vec2[];
+  /** Live preview point following the pointer. */
+  cursor: Vec2 | null;
+  /** Set only mid-drag, so re-extrusion is live but history stays clean. */
+  dragging: { index: number; position: Vec2 } | null;
+
+  /** Applied to new rooms; existing rooms carry their own per-wall values. */
+  wallDefaults: WallSettings;
+  snap: SnapSettings;
+
+  execute: (command: Command) => void;
+  undo: () => void;
+  redo: () => void;
+
+  setMode: (mode: Mode) => void;
+  addDraftPoint: (point: Vec2) => void;
+  setCursor: (point: Vec2 | null) => void;
+  cancelDraft: () => void;
+  closeDraft: () => boolean;
+
+  beginDrag: (index: number) => void;
+  updateDrag: (position: Vec2) => void;
+  endDrag: () => void;
+
+  applyWallSettings: (next: Partial<WallSettings>) => void;
+  replaceScene: (next: Scene, label?: string) => void;
+}
+
+export const DEFAULT_SNAP: SnapSettings = { grid: 0.1, angle: Math.PI / 12 };
+export const DEFAULT_WALLS: WallSettings = { height: 2.5, thickness: 0.2 };
+
+/** The polygon as currently displayed, including an in-progress drag. */
+export function livePolygon(state: EditorState): Vec2[] {
+  const { polygon } = state.scene.room;
+  const drag = state.dragging;
+  if (!drag) return polygon;
+  return polygon.map((p, i) => (i === drag.index ? drag.position : p));
+}
+
+export function currentWallSettings(state: EditorState): WallSettings {
+  return wallSettingsOf(state.scene, state.wallDefaults);
+}
+
+export function historyLabels(state: EditorState): {
+  past: string[];
+  future: string[];
+} {
+  return {
+    past: state.past.map((c) => c.label),
+    future: state.future.map((c) => c.label),
+  };
+}
+
+export type EditorStore = StoreApi<EditorState>;
+
+export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
+  return createStore<EditorState>()((set, get) => ({
+    scene: emptyScene(),
+    past: [],
+    future: [],
+    mode: "draw",
+    draft: [],
+    cursor: null,
+    dragging: null,
+    wallDefaults: DEFAULT_WALLS,
+    snap: DEFAULT_SNAP,
+
+    execute: (command) =>
+      set((state) => ({
+        scene: command.do(state.scene),
+        past: [...state.past, command],
+        future: [],
+      })),
+
+    undo: () =>
+      set((state) => {
+        const command = state.past.at(-1);
+        if (!command) return state;
+        return {
+          scene: command.undo(state.scene),
+          past: state.past.slice(0, -1),
+          future: [command, ...state.future],
+        };
+      }),
+
+    redo: () =>
+      set((state) => {
+        const command = state.future[0];
+        if (!command) return state;
+        return {
+          scene: command.do(state.scene),
+          past: [...state.past, command],
+          future: state.future.slice(1),
+        };
+      }),
+
+    setMode: (mode) => set({ mode, draft: [], cursor: null, dragging: null }),
+
+    addDraftPoint: (point) => set((state) => ({ draft: [...state.draft, point] })),
+
+    setCursor: (cursor) => set({ cursor }),
+
+    cancelDraft: () => set({ draft: [], cursor: null }),
+
+    closeDraft: () => {
+      const state = get();
+      if (state.draft.length < 3 || selfIntersects(state.draft)) return false;
+      state.execute(closeRoom(state.draft, currentWallSettings(state)));
+      set({ draft: [], cursor: null, mode: "edit" });
+      return true;
+    },
+
+    beginDrag: (index) => {
+      const position = get().scene.room.polygon[index];
+      if (!position) return;
+      set({ dragging: { index, position } });
+    },
+
+    updateDrag: (position) =>
+      set((state) =>
+        state.dragging ? { dragging: { ...state.dragging, position } } : state,
+      ),
+
+    endDrag: () => {
+      const state = get();
+      const drag = state.dragging;
+      if (!drag) return;
+      const from = state.scene.room.polygon[drag.index];
+      set({ dragging: null });
+      // One history entry per gesture, and nothing at all if it didn't move.
+      if (!from || (from.x === drag.position.x && from.z === drag.position.z)) return;
+      state.execute(moveVertex(drag.index, from, drag.position));
+    },
+
+    applyWallSettings: (partial) => {
+      const state = get();
+      const prev = currentWallSettings(state);
+      const next = { ...prev, ...partial };
+      if (prev.height === next.height && prev.thickness === next.thickness) return;
+      if (state.scene.room.walls.length === 0) {
+        set({ wallDefaults: next });
+        return;
+      }
+      state.execute(setWallSettings(prev, next));
+    },
+
+    replaceScene: (next) => {
+      const state = get();
+      state.execute({
+        label: "Load scene",
+        do: () => next,
+        undo: () => state.scene,
+      });
+    },
+
+    ...initial,
+  }));
+}

@@ -55,8 +55,12 @@
       "name": "@layra/state",
       "version": "0.0.0",
       "dependencies": {
+        "@layra/geometry": "workspace:*",
         "@layra/types": "workspace:*",
         "zustand": "5.0.14",
+      },
+      "devDependencies": {
+        "vitest": "4.1.10",
       },
     },
     "packages/types": {
