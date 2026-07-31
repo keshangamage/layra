@@ -11,6 +11,7 @@ import { Walls } from "./Walls";
 import { Floor } from "./Floor";
 import { DrawController } from "./DrawController";
 import { DraftPolyline } from "./DraftPolyline";
+import { VertexHandles } from "./VertexHandles";
 
 function Room() {
   // livePolygon builds a new array mid-drag, so compare by element identity.
@@ -30,6 +31,7 @@ function Room() {
 
 export default function Scene() {
   const polygon = useEditor((state) => state.scene.room.polygon);
+  const isDragging = useEditor((state) => state.dragging !== null);
   const extent = useMemo(() => bounds(polygon), [polygon]);
 
   // Frame the shadow camera to the room so shadows stay sharp.
@@ -58,6 +60,7 @@ export default function Scene() {
 
       <Room />
       <DraftPolyline />
+      <VertexHandles />
       <DrawController />
 
       <Grid
@@ -74,6 +77,9 @@ export default function Scene() {
       />
 
       <OrbitControls
+        // R3F's stopPropagation doesn't reach OrbitControls, which listens on
+        // the canvas directly, so a handle drag would orbit the camera too.
+        enabled={!isDragging}
         enableDamping
         dampingFactor={0.08}
         maxPolarAngle={Math.PI / 2 - 0.02}
