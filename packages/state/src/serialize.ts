@@ -1,0 +1,149 @@
+import {
+  SCENE_VERSION,
+  type Opening,
+  type Placement,
+  type Room,
+  type Scene,
+  type Vec2,
+  type Vec3,
+  type Wall,
+} from "@layra/types";
+
+export type ParseResult =
+  | { ok: true; scene: Scene }
+  | { ok: false; error: string };
+
+export function serializeScene(scene: Scene): string {
+  return JSON.stringify(scene, null, 2);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function num(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function vec2(value: unknown): Vec2 | null {
+  if (!isRecord(value) || !num(value.x) || !num(value.z)) return null;
+  return { x: value.x, z: value.z };
+}
+
+function vec3(value: unknown): Vec3 | null {
+  if (!isRecord(value) || !num(value.x) || !num(value.y) || !num(value.z)) return null;
+  return { x: value.x, y: value.y, z: value.z };
+}
+
+function opening(value: unknown): Opening | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.id !== "string") return null;
+  if (value.type !== "door" && value.type !== "window") return null;
+  if (!num(value.offset) || !num(value.width) || !num(value.height)) return null;
+  if (!num(value.sillHeight)) return null;
+  return {
+    id: value.id,
+    type: value.type,
+    offset: value.offset,
+    width: value.width,
+    height: value.height,
+    sillHeight: value.sillHeight,
+  };
+}
+
+function wall(value: unknown): Wall | null {
+  if (!isRecord(value) || typeof value.id !== "string") return null;
+  const start = vec2(value.start);
+  const end = vec2(value.end);
+  if (!start || !end || !num(value.height) || !num(value.thickness)) return null;
+  if (!Array.isArray(value.openings)) return null;
+
+  const openings: Opening[] = [];
+  for (const raw of value.openings) {
+    const parsed = opening(raw);
+    if (!parsed) return null;
+    openings.push(parsed);
+  }
+  return {
+    id: value.id,
+    start,
+    end,
+    height: value.height,
+    thickness: value.thickness,
+    openings,
+  };
+}
+
+function placement(value: unknown): Placement | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.id !== "string" || typeof value.catalogItemId !== "string") return null;
+  const position = vec3(value.position);
+  if (!position || !num(value.rotationY) || typeof value.locked !== "boolean") return null;
+  return {
+    id: value.id,
+    catalogItemId: value.catalogItemId,
+    position,
+    rotationY: value.rotationY,
+    locked: value.locked,
+  };
+}
+
+function room(value: unknown): Room | null {
+  if (!isRecord(value)) return null;
+  if (typeof value.floorMaterial !== "string") return null;
+  if (!Array.isArray(value.walls) || !Array.isArray(value.polygon)) return null;
+
+  const walls: Wall[] = [];
+  for (const raw of value.walls) {
+    const parsed = wall(raw);
+    if (!parsed) return null;
+    walls.push(parsed);
+  }
+
+  const polygon: Vec2[] = [];
+  for (const raw of value.polygon) {
+    const parsed = vec2(raw);
+    if (!parsed) return null;
+    polygon.push(parsed);
+  }
+
+  return { walls, polygon, floorMaterial: value.floorMaterial };
+}
+
+/** Validates untrusted JSON rather than trusting its shape. */
+export function parseScene(text: string): ParseResult {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "Not valid JSON." };
+  }
+
+  if (!isRecord(raw)) return { ok: false, error: "Expected a scene object." };
+
+  if (!num(raw.version)) return { ok: false, error: "Missing scene version." };
+  if (raw.version !== SCENE_VERSION) {
+    return {
+      ok: false,
+      error: `Unsupported scene version ${raw.version}; expected ${SCENE_VERSION}.`,
+    };
+  }
+
+  const parsedRoom = room(raw.room);
+  if (!parsedRoom) return { ok: false, error: "Room data is malformed." };
+
+  if (!Array.isArray(raw.placements)) {
+    return { ok: false, error: "Placements must be a list." };
+  }
+  const placements: Placement[] = [];
+  for (const item of raw.placements) {
+    const parsed = placement(item);
+    if (!parsed) return { ok: false, error: "Placement data is malformed." };
+    placements.push(parsed);
+  }
+
+  return {
+    ok: true,
+    scene: { version: SCENE_VERSION, room: parsedRoom, placements },
+  };
+}

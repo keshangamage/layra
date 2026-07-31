@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { DEFAULT_SNAP, DEFAULT_WALLS } from "@layra/state";
+import { DEFAULT_SNAP, DEFAULT_WALLS, serializeScene } from "@layra/state";
 import { emptyScene } from "@layra/types";
 import { editorStore } from "@/state/editor";
 import { Toolbar } from "./Toolbar";
@@ -118,6 +118,44 @@ describe("SettingsPanel", () => {
 
     run(() => editorStore.getState().undo());
     expect(thickness.value).toBe("0.2");
+  });
+});
+
+describe("FileActions", () => {
+  async function pick(contents: string) {
+    render(<Toolbar />);
+    const input = screen.getByLabelText("Load scene file") as HTMLInputElement;
+    const file = new File([contents], "scene.json", { type: "application/json" });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+  }
+
+  it("loads a valid scene and makes it undoable", async () => {
+    drawRoom();
+    const saved = serializeScene(editorStore.getState().scene);
+    run(() => editorStore.getState().undo());
+    expect(editorStore.getState().scene.room.walls).toHaveLength(0);
+
+    await pick(saved);
+    expect(editorStore.getState().scene.room.walls).toHaveLength(4);
+
+    run(() => editorStore.getState().undo());
+    expect(editorStore.getState().scene.room.walls).toHaveLength(0);
+  });
+
+  it("shows an error and keeps the scene on a bad file", async () => {
+    drawRoom();
+    const before = editorStore.getState().scene;
+
+    await pick("{ not json");
+    expect(screen.getByText("Not valid JSON.")).toBeDefined();
+    expect(editorStore.getState().scene).toBe(before);
+  });
+
+  it("reports a version mismatch", async () => {
+    await pick(JSON.stringify({ version: 99, room: {}, placements: [] }));
+    expect(screen.getByText(/Unsupported scene version 99/)).toBeDefined();
   });
 });
 

@@ -3,6 +3,7 @@ import { emptyScene, type Scene, type Vec2 } from "@layra/types";
 import { selfIntersects } from "@layra/geometry";
 import {
   closeRoom,
+  loadScene,
   moveVertex,
   setWallSettings,
   wallSettingsOf,
@@ -51,7 +52,7 @@ export interface EditorState {
   endDrag: () => void;
 
   applyWallSettings: (next: Partial<WallSettings>) => void;
-  replaceScene: (next: Scene, label?: string) => void;
+  replaceScene: (next: Scene) => void;
 }
 
 export const DEFAULT_SNAP: SnapSettings = { grid: 0.1, angle: Math.PI / 12 };
@@ -174,10 +175,13 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     replaceScene: (next) => {
       const state = get();
-      state.execute({
-        label: "Load scene",
-        do: () => next,
-        undo: () => state.scene,
+      state.execute(loadScene(state.scene, next));
+      // An in-progress draft or drag refers to the scene being replaced.
+      set({
+        draft: [],
+        cursor: null,
+        dragging: null,
+        mode: next.room.polygon.length >= 3 ? "edit" : "draw",
       });
     },
 

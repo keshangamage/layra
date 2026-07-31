@@ -26,3 +26,5 @@ export {
 } from "./store";
 
 export { snapFrom, snapPoint, snapToGrid } from "./snap";
+
+export { parseScene, serializeScene, type ParseResult } from "./serialize";
