@@ -1,11 +1,7 @@
 "use client";
 
-interface SettingsPanelProps {
-  wallHeight: number;
-  wallThickness: number;
-  onWallHeightChange: (value: number) => void;
-  onWallThicknessChange: (value: number) => void;
-}
+import { currentWallSettings } from "@layra/state";
+import { editor, useEditor } from "@/state/editor";
 
 interface SliderProps {
   label: string;
@@ -36,12 +32,11 @@ function Slider({ label, value, min, max, step, onChange }: SliderProps) {
   );
 }
 
-export function SettingsPanel({
-  wallHeight,
-  wallThickness,
-  onWallHeightChange,
-  onWallThicknessChange,
-}: SettingsPanelProps) {
+export function SettingsPanel() {
+  // Selected as primitives; currentWallSettings returns a fresh object each call.
+  const height = useEditor((state) => currentWallSettings(state).height);
+  const thickness = useEditor((state) => currentWallSettings(state).thickness);
+
   return (
     <section className="space-y-4 border-b border-zinc-800 p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
@@ -49,19 +44,19 @@ export function SettingsPanel({
       </h2>
       <Slider
         label="Height"
-        value={wallHeight}
+        value={height}
         min={1.8}
         max={4}
         step={0.05}
-        onChange={onWallHeightChange}
+        onChange={(value) => editor().applyWallSettings({ height: value })}
       />
       <Slider
         label="Thickness"
-        value={wallThickness}
+        value={thickness}
         min={0.05}
         max={0.6}
         step={0.01}
-        onChange={onWallThicknessChange}
+        onChange={(value) => editor().applyWallSettings({ thickness: value })}
       />
     </section>
   );
