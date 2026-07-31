@@ -2,6 +2,7 @@
 
 import type { Mode } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
+import { FileActions } from "./FileActions";
 
 export function Toolbar() {
   const mode = useEditor((state) => state.mode);
@@ -38,6 +39,8 @@ export function Toolbar() {
           </button>
         ))}
       </div>
+
+      <FileActions />
 
       <span className="ml-auto text-xs text-zinc-500">{hint}</span>
     </header>
