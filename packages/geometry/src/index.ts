@@ -47,6 +47,13 @@ export {
 export { triangulateFloor, triangulatePolygon } from "./triangulate";
 
 export {
+  edgeLabels,
+  formatArea,
+  formatLength,
+  type EdgeLabel,
+} from "./dimensions";
+
+export {
   convexArea,
   convexOverlap,
   expandRect,

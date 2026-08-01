@@ -16,18 +16,20 @@ export function Toolbar() {
         : draftCount < 3
           ? `${draftCount} placed · keep clicking`
           : "Enter or click the first corner to close · Esc to cancel"
-      : "Drag a corner handle to reshape the room";
+      : mode === "edit"
+        ? "Drag a corner handle to reshape the room"
+        : "Click two points to measure - Esc clears";
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-950 px-4">
       <span className="text-sm font-semibold tracking-tight text-zinc-100">Layra</span>
 
       <div className="flex items-center gap-1 rounded-md bg-zinc-900 p-0.5">
-        {(["draw", "edit"] as const).map((value) => (
+        {(["draw", "edit", "measure"] as const).map((value) => (
           <button
             key={value}
             type="button"
-            disabled={value === "edit" && !hasRoom}
+            disabled={value !== "draw" && !hasRoom}
             onClick={() => editor().setMode(value as Mode)}
             className={`rounded px-3 py-1 text-xs font-medium capitalize transition-colors disabled:opacity-30 ${
               mode === value

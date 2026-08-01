@@ -23,7 +23,7 @@ import {
 } from "./commands";
 import { snapPoint } from "./snap";
 
-export type Mode = "draw" | "edit";
+export type Mode = "draw" | "edit" | "measure";
 
 export interface SnapSettings {
   /** Metres. */
@@ -65,6 +65,16 @@ export interface EditorState {
 
   applyWallSettings: (next: Partial<WallSettings>) => void;
   replaceScene: (next: Scene) => void;
+
+  /** Two-point ruler. Null entries mean that end is not placed yet. */
+  measure: { from: Vec2 | null; to: Vec2 | null };
+  addMeasurePoint: (point: Vec2) => void;
+  setMeasureCursor: (point: Vec2 | null) => void;
+  clearMeasure: () => void;
+
+  /** Wall length labels. */
+  showDimensions: boolean;
+  toggleDimensions: () => void;
 
   /** Currently selected furniture, or null. */
   selectedId: string | null;
@@ -161,7 +171,36 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         };
       }),
 
-    setMode: (mode) => set({ mode, draft: [], cursor: null, dragging: null }),
+    setMode: (mode) =>
+      set({
+        mode,
+        draft: [],
+        cursor: null,
+        dragging: null,
+        measure: { from: null, to: null },
+      }),
+
+    measure: { from: null, to: null },
+    showDimensions: true,
+
+    toggleDimensions: () => set((state) => ({ showDimensions: !state.showDimensions })),
+
+    addMeasurePoint: (point) =>
+      set((state) => {
+        // Third click starts a fresh measurement.
+        if (state.measure.from && state.measure.to) {
+          return { measure: { from: point, to: null } };
+        }
+        if (!state.measure.from) return { measure: { from: point, to: null } };
+        return { measure: { from: state.measure.from, to: point } };
+      }),
+
+    setMeasureCursor: (point) =>
+      set((state) =>
+        state.measure.from && !state.measure.to ? { cursor: point } : state,
+      ),
+
+    clearMeasure: () => set({ measure: { from: null, to: null }, cursor: null }),
 
     addDraftPoint: (point) => set((state) => ({ draft: [...state.draft, point] })),
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
@@ -13,6 +13,8 @@ import { DrawController } from "./DrawController";
 import { DraftPolyline } from "./DraftPolyline";
 import { VertexHandles } from "./VertexHandles";
 import { Furniture } from "./Furniture";
+import { Dimensions } from "./Dimensions";
+import { MeasureTool } from "./MeasureTool";
 
 function Room() {
   // livePolygon builds a new array mid-drag, so compare by element identity.
@@ -30,7 +32,13 @@ function Room() {
   );
 }
 
+/** Remounting the Canvas is more reliable than reviving a dead renderer. */
+const MAX_RECOVERY_ATTEMPTS = 2;
+
 export default function Scene() {
+  const [contextLost, setContextLost] = useState(false);
+  const [canvasKey, setCanvasKey] = useState(0);
+  const attempts = useRef(0);
   const polygon = useEditor((state) => state.scene.room.polygon);
   const isDragging = useEditor(
     (state) => state.dragging !== null || state.placementDrag !== null,
@@ -40,8 +48,33 @@ export default function Scene() {
   // Frame the shadow camera to the room so shadows stay sharp.
   const shadowRadius = Math.max(extent.size.x, extent.size.z, 4);
 
+  useEffect(() => {
+    if (!contextLost || attempts.current >= MAX_RECOVERY_ATTEMPTS) return;
+    // Give the GPU a moment before asking for a new context.
+    const timer = setTimeout(() => {
+      attempts.current += 1;
+      setContextLost(false);
+      setCanvasKey((key) => key + 1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [contextLost]);
+
   return (
+    <>
     <Canvas
+      key={canvasKey}
+      onCreated={({ gl }) => {
+        const canvas = gl.domElement;
+        canvas.addEventListener("webglcontextlost", (event) => {
+          // Required, or the browser never attempts to restore the context.
+          event.preventDefault();
+          setContextLost(true);
+        });
+        canvas.addEventListener("webglcontextrestored", () => {
+          attempts.current = 0;
+          setContextLost(false);
+        });
+      }}
       // "percentage" is PCFShadowMap; the default maps to the deprecated PCFSoftShadowMap.
       shadows="percentage"
       camera={{ position: [7, 6, 8], fov: 45, near: 0.1, far: 200 }}
@@ -67,6 +100,8 @@ export default function Scene() {
       <Furniture />
       <DraftPolyline />
       <VertexHandles />
+      <Dimensions />
+      <MeasureTool />
       <DrawController />
 
       <Grid
@@ -94,5 +129,24 @@ export default function Scene() {
         target={[extent.center.x, 0, extent.center.z]}
       />
     </Canvas>
+
+    {contextLost && (
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-900/95 text-center">
+        <p className="text-sm text-zinc-300">3D view lost its graphics context.</p>
+        <p className="max-w-xs text-xs text-zinc-500">
+          Your scene is safe. Automatic recovery did not take, which usually means
+          the browser is out of GPU contexts. Close other heavy tabs, or restart
+          the browser.
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="rounded bg-zinc-700 px-3 py-1 text-xs font-medium text-zinc-100 hover:bg-zinc-600"
+        >
+          Reload
+        </button>
+      </div>
+    )}
+    </>
   );
 }
