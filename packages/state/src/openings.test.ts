@@ -1,0 +1,157 @@
+import { describe, expect, it } from "vitest";
+import { createEditorStore } from "./store";
+
+const square = [
+  { x: 0, z: 0 },
+  { x: 6, z: 0 },
+  { x: 6, z: 4 },
+  { x: 0, z: 4 },
+];
+
+function storeWithRoom() {
+  const store = createEditorStore();
+  for (const point of square) store.getState().addDraftPoint(point);
+  store.getState().closeDraft();
+  return store;
+}
+
+const wallsOf = (s: ReturnType<typeof storeWithRoom>) => s.getState().scene.room.walls;
+
+describe("arming", () => {
+  it("starts unarmed and toggles", () => {
+    const s = storeWithRoom();
+    expect(s.getState().pendingOpening).toBeNull();
+    s.getState().armOpening("door");
+    expect(s.getState().pendingOpening).toBe("door");
+  });
+
+  it("does nothing when unarmed", () => {
+    const s = storeWithRoom();
+    expect(s.getState().placeOpeningAt({ x: 3, z: 0 })).toBe(false);
+    expect(wallsOf(s).flatMap((w) => w.openings)).toHaveLength(0);
+  });
+
+  it("disarms after placing", () => {
+    const s = storeWithRoom();
+    s.getState().armOpening("door");
+    s.getState().placeOpeningAt({ x: 3, z: 0 });
+    expect(s.getState().pendingOpening).toBeNull();
+  });
+});
+
+describe("placing", () => {
+  it("adds to the wall nearest the click", () => {
+    const s = storeWithRoom();
+    s.getState().armOpening("door");
+    expect(s.getState().placeOpeningAt({ x: 3, z: 0.05 })).toBe(true);
+    expect(wallsOf(s)[0]?.openings).toHaveLength(1);
+    expect(wallsOf(s)[1]?.openings).toHaveLength(0);
+  });
+
+  it("centres the opening on the click", () => {
+    const s = storeWithRoom();
+    s.getState().armOpening("door");
+    s.getState().placeOpeningAt({ x: 3, z: 0 });
+    // Door is 0.9 wide, so a click at 3m starts it at 2.55m.
+    expect(wallsOf(s)[0]?.openings[0]?.offset).toBeCloseTo(2.55);
+  });
+
+  it("pulls an opening back inside the wall near a corner", () => {
+    const s = storeWithRoom();
+    s.getState().armOpening("door");
+    s.getState().placeOpeningAt({ x: 0, z: 0 });
+    expect(wallsOf(s)[0]?.openings[0]?.offset).toBe(0);
+
+    s.getState().armOpening("door");
+    s.getState().placeOpeningAt({ x: 6, z: 0 });
+    const last = wallsOf(s)[0]?.openings.at(-1);
+    expect(last?.offset).toBeCloseTo(6 - 0.9);
+  });
+
+  it("uses standard sizes per type", () => {
+    const s = storeWithRoom();
+    s.getState().armOpening("window");
+    s.getState().placeOpeningAt({ x: 3, z: 0 });
+    const opening = wallsOf(s)[0]?.openings[0];
+    expect(opening?.width).toBeCloseTo(1.2);
+    expect(opening?.sillHeight).toBeCloseTo(0.9);
+  });
+
+  it("gives each opening a distinct id", () => {
+    const s = storeWithRoom();
+    for (const x of [1, 4]) {
+      s.getState().armOpening("door");
+      s.getState().placeOpeningAt({ x, z: 0 });
+    }
+    const [a, b] = wallsOf(s)[0]!.openings;
+    expect(a?.id).not.toBe(b?.id);
+  });
+
+  it("refuses a wall too short for the opening", () => {
+    const s = createEditorStore();
+    for (const point of [
+      { x: 0, z: 0 },
+      { x: 0.5, z: 0 },
+      { x: 0.5, z: 3 },
+      { x: 0, z: 3 },
+    ]) {
+      s.getState().addDraftPoint(point);
+    }
+    s.getState().closeDraft();
+    s.getState().armOpening("door");
+    expect(s.getState().placeOpeningAt({ x: 0.25, z: 0 })).toBe(false);
+  });
+
+  it("refuses an opening taller than the wall", () => {
+    const s = storeWithRoom();
+    s.getState().applyWallSettings({ height: 1.9 });
+    s.getState().armOpening("door");
+    expect(s.getState().placeOpeningAt({ x: 3, z: 0 })).toBe(false);
+  });
+
+  it("is undoable", () => {
+    const s = storeWithRoom();
+    s.getState().armOpening("door");
+    s.getState().placeOpeningAt({ x: 3, z: 0 });
+    expect(s.getState().past.at(-1)?.label).toBe("Add door");
+
+    s.getState().undo();
+    expect(wallsOf(s)[0]?.openings).toHaveLength(0);
+    s.getState().redo();
+    expect(wallsOf(s)[0]?.openings).toHaveLength(1);
+  });
+});
+
+describe("deleting", () => {
+  it("removes and restores in place", () => {
+    const s = storeWithRoom();
+    for (const x of [1, 3, 5]) {
+      s.getState().armOpening("door");
+      s.getState().placeOpeningAt({ x, z: 0 });
+    }
+    const middle = wallsOf(s)[0]!.openings[1]!;
+    s.getState().deleteOpening(0, middle.id);
+    expect(wallsOf(s)[0]?.openings).toHaveLength(2);
+
+    s.getState().undo();
+    expect(wallsOf(s)[0]?.openings[1]?.id).toBe(middle.id);
+  });
+
+  it("ignores an unknown id or wall", () => {
+    const s = storeWithRoom();
+    s.getState().deleteOpening(0, "nope");
+    s.getState().deleteOpening(99, "nope");
+    expect(s.getState().past).toHaveLength(1);
+  });
+});
+
+describe("persistence", () => {
+  it("survives a scene replacement and clears the armed type", () => {
+    const s = storeWithRoom();
+    s.getState().armOpening("door");
+    s.getState().placeOpeningAt({ x: 3, z: 0 });
+    s.getState().replaceScene(s.getState().scene);
+    expect(wallsOf(s)[0]?.openings).toHaveLength(1);
+    expect(s.getState().pendingOpening).toBeNull();
+  });
+});

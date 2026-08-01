@@ -2,11 +2,13 @@
 // Imports zustand/vanilla only - this package stays free of React.
 
 export {
+  addOpening,
   addPlacement,
   closeRoom,
   loadScene,
   movePlacement,
   moveVertex,
+  removeOpening,
   removePlacement,
   roomFromPolygon,
   rotatePlacement,
@@ -29,6 +31,7 @@ export {
 export {
   DEFAULT_SNAP,
   DEFAULT_WALLS,
+  OPENING_DEFAULTS,
   createEditorStore,
   currentWallSettings,
   historyLabels,

@@ -47,6 +47,16 @@ export {
 export { triangulateFloor, triangulatePolygon } from "./triangulate";
 
 export {
+  facePanels,
+  nearestWallStation,
+  resolveOpenings,
+  type OpeningSpan,
+  type Panel,
+  type WallStation,
+  type WallOpening,
+} from "./openings";
+
+export {
   edgeLabels,
   formatArea,
   formatLength,

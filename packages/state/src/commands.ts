@@ -1,4 +1,12 @@
-import type { Placement, Room, Scene, Vec2, Vec3, Wall } from "@layra/types";
+import type {
+  Opening,
+  Placement,
+  Room,
+  Scene,
+  Vec2,
+  Vec3,
+  Wall,
+} from "@layra/types";
 import { ensureCCW } from "@layra/geometry";
 
 /**
@@ -137,6 +145,54 @@ export function rotatePlacement(id: string, from: number, to: number): Command {
     label: "Rotate furniture",
     do: (scene) => apply(scene, to),
     undo: (scene) => apply(scene, from),
+  };
+}
+
+function mapWall(scene: Scene, index: number, fn: (wall: Wall) => Wall): Scene {
+  return {
+    ...scene,
+    room: {
+      ...scene.room,
+      walls: scene.room.walls.map((wall, i) => (i === index ? fn(wall) : wall)),
+    },
+  };
+}
+
+export function addOpening(index: number, opening: Opening): Command {
+  return {
+    label: `Add ${opening.type}`,
+    do: (scene) =>
+      mapWall(scene, index, (wall) => ({
+        ...wall,
+        openings: [...wall.openings, opening],
+      })),
+    undo: (scene) =>
+      mapWall(scene, index, (wall) => ({
+        ...wall,
+        openings: wall.openings.filter((o) => o.id !== opening.id),
+      })),
+  };
+}
+
+export function removeOpening(
+  index: number,
+  opening: Opening,
+  position: number,
+): Command {
+  return {
+    label: `Delete ${opening.type}`,
+    do: (scene) =>
+      mapWall(scene, index, (wall) => ({
+        ...wall,
+        openings: wall.openings.filter((o) => o.id !== opening.id),
+      })),
+    // Restores at its original position so undo does not reorder.
+    undo: (scene) =>
+      mapWall(scene, index, (wall) => {
+        const next = [...wall.openings];
+        next.splice(Math.min(position, next.length), 0, opening);
+        return { ...wall, openings: next };
+      }),
   };
 }
 
