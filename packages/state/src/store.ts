@@ -1,10 +1,14 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { emptyScene, type Scene, type Vec2 } from "@layra/types";
-import { selfIntersects } from "@layra/geometry";
+import { emptyScene, type Placement, type Scene, type Vec2 } from "@layra/types";
+import { bounds, selfIntersects } from "@layra/geometry";
+import { findCatalogItem } from "./catalog";
 import {
+  addPlacement,
   closeRoom,
   loadScene,
   moveVertex,
+  removePlacement,
+  rotatePlacement,
   setWallSettings,
   wallSettingsOf,
   type Command,
@@ -53,6 +57,13 @@ export interface EditorState {
 
   applyWallSettings: (next: Partial<WallSettings>) => void;
   replaceScene: (next: Scene) => void;
+
+  /** Currently selected furniture, or null. */
+  selectedId: string | null;
+  selectPlacement: (id: string | null) => void;
+  placeFurniture: (catalogItemId: string) => void;
+  deleteSelected: () => void;
+  rotateSelected: (radians: number) => void;
 }
 
 export const DEFAULT_SNAP: SnapSettings = { grid: 0.1, angle: Math.PI / 12 };
@@ -173,6 +184,48 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       state.execute(setWallSettings(prev, next));
     },
 
+    selectedId: null,
+
+    selectPlacement: (selectedId) => set({ selectedId }),
+
+    placeFurniture: (catalogItemId) => {
+      const state = get();
+      const item = findCatalogItem(catalogItemId);
+      if (!item) return;
+
+      // Drop it at the room's centre; there is no pointer position yet.
+      const centre = bounds(state.scene.room.polygon).center;
+      const placement: Placement = {
+        id: crypto.randomUUID(),
+        catalogItemId,
+        position: { x: centre.x, y: 0, z: centre.z },
+        rotationY: 0,
+        locked: false,
+      };
+      state.execute(addPlacement(placement, item.name));
+      set({ selectedId: placement.id });
+    },
+
+    deleteSelected: () => {
+      const state = get();
+      const index = state.scene.placements.findIndex((p) => p.id === state.selectedId);
+      const placement = state.scene.placements[index];
+      if (!placement || placement.locked) return;
+
+      const item = findCatalogItem(placement.catalogItemId);
+      state.execute(removePlacement(placement, index, item?.name ?? "furniture"));
+      set({ selectedId: null });
+    },
+
+    rotateSelected: (radians) => {
+      const state = get();
+      const placement = state.scene.placements.find((p) => p.id === state.selectedId);
+      if (!placement || placement.locked) return;
+      state.execute(
+        rotatePlacement(placement.id, placement.rotationY, placement.rotationY + radians),
+      );
+    },
+
     replaceScene: (next) => {
       const state = get();
       state.execute(loadScene(state.scene, next));
@@ -181,6 +234,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         draft: [],
         cursor: null,
         dragging: null,
+        selectedId: null,
         mode: next.room.polygon.length >= 3 ? "edit" : "draw",
       });
     },

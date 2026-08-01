@@ -6,12 +6,13 @@ import { Grid, OrbitControls } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
 import { bounds } from "@layra/geometry";
 import { currentWallSettings, livePolygon } from "@layra/state";
-import { useEditor } from "@/state/editor";
+import { editor, useEditor } from "@/state/editor";
 import { Walls } from "./Walls";
 import { Floor } from "./Floor";
 import { DrawController } from "./DrawController";
 import { DraftPolyline } from "./DraftPolyline";
 import { VertexHandles } from "./VertexHandles";
+import { Furniture } from "./Furniture";
 
 function Room() {
   // livePolygon builds a new array mid-drag, so compare by element identity.
@@ -43,6 +44,8 @@ export default function Scene() {
       shadows="percentage"
       camera={{ position: [7, 6, 8], fov: 45, near: 0.1, far: 200 }}
       className="bg-zinc-900"
+      // Fires only when a click hit no mesh, unlike a raw canvas pointerup.
+      onPointerMissed={() => editor().selectPlacement(null)}
     >
       <ambientLight intensity={0.6} />
       <directionalLight
@@ -59,6 +62,7 @@ export default function Scene() {
       />
 
       <Room />
+      <Furniture />
       <DraftPolyline />
       <VertexHandles />
       <DrawController />
