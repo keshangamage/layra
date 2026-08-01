@@ -1,11 +1,18 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { emptyScene, type Placement, type Scene, type Vec2 } from "@layra/types";
+import {
+  emptyScene,
+  type Placement,
+  type Scene,
+  type Vec2,
+  type Vec3,
+} from "@layra/types";
 import { bounds, selfIntersects } from "@layra/geometry";
 import { findCatalogItem } from "./catalog";
 import {
   addPlacement,
   closeRoom,
   loadScene,
+  movePlacement,
   moveVertex,
   removePlacement,
   rotatePlacement,
@@ -14,6 +21,7 @@ import {
   type Command,
   type WallSettings,
 } from "./commands";
+import { snapPoint } from "./snap";
 
 export type Mode = "draw" | "edit";
 
@@ -64,6 +72,12 @@ export interface EditorState {
   placeFurniture: (catalogItemId: string) => void;
   deleteSelected: () => void;
   rotateSelected: (radians: number) => void;
+
+  /** Transient, like `dragging`, so history gets one entry per gesture. */
+  placementDrag: { id: string; offset: Vec2; position: Vec3 } | null;
+  beginPlacementDrag: (id: string, pointer: Vec2) => void;
+  updatePlacementDrag: (pointer: Vec2) => void;
+  endPlacementDrag: () => void;
 }
 
 export const DEFAULT_SNAP: SnapSettings = { grid: 0.1, angle: Math.PI / 12 };
@@ -79,6 +93,19 @@ export function livePolygon(state: EditorState): Vec2[] {
 
 export function currentWallSettings(state: EditorState): WallSettings {
   return wallSettingsOf(state.scene, state.wallDefaults);
+}
+
+/**
+ * Placements as currently displayed, including an in-progress drag.
+ * Builds a fresh object mid-drag, so memoize it rather than passing it
+ * straight to a store subscription.
+ */
+export function livePlacements(state: EditorState): Placement[] {
+  const drag = state.placementDrag;
+  if (!drag) return state.scene.placements;
+  return state.scene.placements.map((p) =>
+    p.id === drag.id ? { ...p, position: drag.position } : p,
+  );
 }
 
 export function historyLabels(state: EditorState): {
@@ -226,6 +253,51 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       );
     },
 
+    placementDrag: null,
+
+    beginPlacementDrag: (id, pointer) => {
+      const placement = get().scene.placements.find((p) => p.id === id);
+      if (!placement || placement.locked) return;
+      // Grab offset, so the piece doesn't jump its centre to the pointer.
+      set({
+        placementDrag: {
+          id,
+          offset: {
+            x: placement.position.x - pointer.x,
+            z: placement.position.z - pointer.z,
+          },
+          position: placement.position,
+        },
+      });
+    },
+
+    updatePlacementDrag: (pointer) =>
+      set((state) => {
+        const drag = state.placementDrag;
+        if (!drag) return state;
+        const snapped = snapPoint(
+          { x: pointer.x + drag.offset.x, z: pointer.z + drag.offset.z },
+          state.snap.grid,
+        );
+        return {
+          placementDrag: {
+            ...drag,
+            position: { x: snapped.x, y: 0, z: snapped.z },
+          },
+        };
+      }),
+
+    endPlacementDrag: () => {
+      const state = get();
+      const drag = state.placementDrag;
+      if (!drag) return;
+      const from = state.scene.placements.find((p) => p.id === drag.id)?.position;
+      set({ placementDrag: null });
+      // One entry per gesture, and nothing at all if it didn't move.
+      if (!from || (from.x === drag.position.x && from.z === drag.position.z)) return;
+      state.execute(movePlacement(drag.id, from, drag.position));
+    },
+
     replaceScene: (next) => {
       const state = get();
       state.execute(loadScene(state.scene, next));
@@ -234,6 +306,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         draft: [],
         cursor: null,
         dragging: null,
+        placementDrag: null,
         selectedId: null,
         mode: next.room.polygon.length >= 3 ? "edit" : "draw",
       });
