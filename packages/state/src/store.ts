@@ -1,19 +1,22 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
   emptyScene,
+  type OpeningType,
   type Placement,
   type Scene,
   type Vec2,
   type Vec3,
 } from "@layra/types";
-import { bounds, selfIntersects } from "@layra/geometry";
+import { bounds, nearestWallStation, selfIntersects } from "@layra/geometry";
 import { findCatalogItem } from "./catalog";
 import {
+  addOpening,
   addPlacement,
   closeRoom,
   loadScene,
   movePlacement,
   moveVertex,
+  removeOpening,
   removePlacement,
   rotatePlacement,
   setWallSettings,
@@ -76,6 +79,12 @@ export interface EditorState {
   showDimensions: boolean;
   toggleDimensions: () => void;
 
+  /** Armed opening type; the next wall click places one. */
+  pendingOpening: OpeningType | null;
+  armOpening: (type: OpeningType | null) => void;
+  placeOpeningAt: (point: Vec2) => boolean;
+  deleteOpening: (wallIndex: number, openingId: string) => void;
+
   /** Currently selected furniture, or null. */
   selectedId: string | null;
   selectPlacement: (id: string | null) => void;
@@ -89,6 +98,15 @@ export interface EditorState {
   updatePlacementDrag: (pointer: Vec2) => void;
   endPlacementDrag: () => void;
 }
+
+/** Standard sizes, in metres. */
+export const OPENING_DEFAULTS: Record<
+  OpeningType,
+  { width: number; height: number; sillHeight: number }
+> = {
+  door: { width: 0.9, height: 2.05, sillHeight: 0 },
+  window: { width: 1.2, height: 1.1, sillHeight: 0.9 },
+};
 
 export const DEFAULT_SNAP: SnapSettings = { grid: 0.1, angle: Math.PI / 12 };
 export const DEFAULT_WALLS: WallSettings = { height: 2.5, thickness: 0.2 };
@@ -201,6 +219,46 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       ),
 
     clearMeasure: () => set({ measure: { from: null, to: null }, cursor: null }),
+
+    pendingOpening: null,
+
+    armOpening: (pendingOpening) => set({ pendingOpening }),
+
+    placeOpeningAt: (point) => {
+      const state = get();
+      const type = state.pendingOpening;
+      if (!type) return false;
+
+      const station = nearestWallStation(state.scene.room.polygon, point);
+      const wall = station ? state.scene.room.walls[station.index] : undefined;
+      if (!station || !wall) return false;
+
+      const size = OPENING_DEFAULTS[type];
+      if (size.width > station.wallLength) return false;
+      if (size.sillHeight + size.height > wall.height) return false;
+
+      // Centre it on the click, then pull it back inside the wall.
+      const offset = Math.min(
+        Math.max(station.offset - size.width / 2, 0),
+        station.wallLength - size.width,
+      );
+
+      state.execute(
+        addOpening(station.index, { id: crypto.randomUUID(), type, offset, ...size }),
+      );
+      set({ pendingOpening: null });
+      return true;
+    },
+
+    deleteOpening: (wallIndex, openingId) => {
+      const state = get();
+      const wall = state.scene.room.walls[wallIndex];
+      if (!wall) return;
+      const position = wall.openings.findIndex((o) => o.id === openingId);
+      const opening = wall.openings[position];
+      if (!opening) return;
+      state.execute(removeOpening(wallIndex, opening, position));
+    },
 
     addDraftPoint: (point) => set((state) => ({ draft: [...state.draft, point] })),
 
@@ -347,6 +405,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         dragging: null,
         placementDrag: null,
         selectedId: null,
+        pendingOpening: null,
         mode: next.room.polygon.length >= 3 ? "edit" : "draw",
       });
     },

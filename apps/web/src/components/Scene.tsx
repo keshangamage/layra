@@ -19,6 +19,8 @@ import { MeasureTool } from "./MeasureTool";
 function Room() {
   // livePolygon builds a new array mid-drag, so compare by element identity.
   const polygon = useEditor(useShallow(livePolygon));
+  const walls = useEditor((state) => state.scene.room.walls);
+  const openings = useMemo(() => walls.map((wall) => wall.openings), [walls]);
   const height = useEditor((state) => currentWallSettings(state).height);
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
 
@@ -27,7 +29,18 @@ function Room() {
   return (
     <>
       <Floor polygon={polygon} thickness={thickness} />
-      <Walls polygon={polygon} height={height} thickness={thickness} />
+      <Walls
+        polygon={polygon}
+        height={height}
+        thickness={thickness}
+        openings={openings}
+        onPointerDown={(event) => {
+          // Only intercept when an opening is armed, so vertex dragging is safe.
+          if (!editor().pendingOpening) return;
+          event.stopPropagation();
+          editor().placeOpeningAt({ x: event.point.x, z: event.point.z });
+        }}
+      />
     </>
   );
 }
