@@ -32,7 +32,9 @@ function Room() {
 
 export default function Scene() {
   const polygon = useEditor((state) => state.scene.room.polygon);
-  const isDragging = useEditor((state) => state.dragging !== null);
+  const isDragging = useEditor(
+    (state) => state.dragging !== null || state.placementDrag !== null,
+  );
   const extent = useMemo(() => bounds(polygon), [polygon]);
 
   // Frame the shadow camera to the room so shadows stay sharp.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CATALOG, findCatalogItem } from "./catalog";
-import { createEditorStore } from "./store";
+import { createEditorStore, livePlacements, livePolygon } from "./store";
 
 const square = [
   { x: 0, z: 0 },
@@ -153,6 +153,162 @@ describe("rotating furniture", () => {
     store.getState().selectPlacement(null);
     store.getState().rotateSelected(1);
     expect(store.getState().scene.placements[0]?.rotationY).toBe(0);
+  });
+});
+
+describe("dragging furniture", () => {
+  function storeWithSofa() {
+    const store = storeWithRoom();
+    store.getState().placeFurniture("sofa-3");
+    return store;
+  }
+
+  it("keeps the grab offset instead of centring on the pointer", () => {
+    const store = storeWithSofa();
+    const id = store.getState().scene.placements[0]!.id;
+    // Piece sits at (2, 1.5); grab it 0.5m to its right.
+    store.getState().beginPlacementDrag(id, { x: 2.5, z: 1.5 });
+    store.getState().updatePlacementDrag({ x: 3.5, z: 1.5 });
+
+    // Pointer moved 1m, so the piece moves 1m, not to the pointer itself.
+    expect(livePlacements(store.getState())[0]?.position).toEqual({
+      x: 3,
+      y: 0,
+      z: 1.5,
+    });
+  });
+
+  it("re-renders live without touching the scene or history", () => {
+    const store = storeWithSofa();
+    const id = store.getState().scene.placements[0]!.id;
+    store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
+    store.getState().updatePlacementDrag({ x: 3, z: 2 });
+
+    expect(livePlacements(store.getState())[0]?.position.x).toBeCloseTo(3);
+    expect(store.getState().scene.placements[0]?.position.x).toBeCloseTo(2);
+    expect(store.getState().past).toHaveLength(2);
+  });
+
+  it("snaps to the grid", () => {
+    const store = storeWithSofa();
+    const id = store.getState().scene.placements[0]!.id;
+    store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
+    store.getState().updatePlacementDrag({ x: 2.937, z: 1.53 });
+
+    const position = livePlacements(store.getState())[0]!.position;
+    expect(position.x).toBeCloseTo(2.9);
+    expect(position.z).toBeCloseTo(1.5);
+  });
+
+  it("stays on the floor plane", () => {
+    const store = storeWithSofa();
+    const id = store.getState().scene.placements[0]!.id;
+    store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
+    store.getState().updatePlacementDrag({ x: 3, z: 2 });
+    store.getState().endPlacementDrag();
+    expect(store.getState().scene.placements[0]?.position.y).toBe(0);
+  });
+
+  it("records exactly one history entry per gesture", () => {
+    const store = storeWithSofa();
+    const id = store.getState().scene.placements[0]!.id;
+    store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
+    for (const x of [2.5, 3, 3.5]) store.getState().updatePlacementDrag({ x, z: 1.5 });
+    store.getState().endPlacementDrag();
+
+    expect(store.getState().past).toHaveLength(3);
+    expect(store.getState().past.at(-1)?.label).toBe("Move furniture");
+    expect(store.getState().scene.placements[0]?.position.x).toBeCloseTo(3.5);
+    expect(store.getState().placementDrag).toBeNull();
+  });
+
+  it("records nothing when the piece did not move", () => {
+    const store = storeWithSofa();
+    const id = store.getState().scene.placements[0]!.id;
+    store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
+    store.getState().endPlacementDrag();
+    expect(store.getState().past).toHaveLength(2);
+  });
+
+  it("undoes back to the original position", () => {
+    const store = storeWithSofa();
+    const id = store.getState().scene.placements[0]!.id;
+    store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
+    store.getState().updatePlacementDrag({ x: 3, z: 2 });
+    store.getState().endPlacementDrag();
+    store.getState().undo();
+
+    expect(store.getState().scene.placements[0]?.position).toEqual({
+      x: 2,
+      y: 0,
+      z: 1.5,
+    });
+  });
+
+  it("refuses to drag a locked piece", () => {
+    const store = storeWithSofa();
+    const id = store.getState().scene.placements[0]!.id;
+    store.setState((state) => ({
+      scene: {
+        ...state.scene,
+        placements: state.scene.placements.map((p) => ({ ...p, locked: true })),
+      },
+    }));
+
+    store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
+    expect(store.getState().placementDrag).toBeNull();
+  });
+
+  it("ignores updates with no drag in progress", () => {
+    const store = storeWithSofa();
+    store.getState().updatePlacementDrag({ x: 9, z: 9 });
+    store.getState().endPlacementDrag();
+    expect(store.getState().scene.placements[0]?.position.x).toBeCloseTo(2);
+  });
+
+  it("leaves other pieces untouched", () => {
+    const store = storeWithSofa();
+    store.getState().placeFurniture("desk");
+    const sofaId = store.getState().scene.placements[0]!.id;
+
+    store.getState().beginPlacementDrag(sofaId, { x: 2, z: 1.5 });
+    store.getState().updatePlacementDrag({ x: 3, z: 1.5 });
+
+    expect(livePlacements(store.getState())[1]?.position.x).toBeCloseTo(2);
+  });
+});
+
+describe("selector reference stability", () => {
+  // A zustand selector is called several times per render. If it returns fresh
+  // objects each time, useSyncExternalStore loops forever.
+  it("livePolygon keeps element identity mid-drag, so it is safe with useShallow", () => {
+    const store = storeWithRoom();
+    store.getState().beginDrag(1);
+    store.getState().updateDrag({ x: 6, z: 0 });
+
+    const a = livePolygon(store.getState());
+    const b = livePolygon(store.getState());
+    expect(a).not.toBe(b);
+    a.forEach((point, i) => expect(point).toBe(b[i]));
+  });
+
+  it("livePlacements builds fresh objects, so callers must memoize it", () => {
+    const store = storeWithRoom();
+    store.getState().placeFurniture("sofa-3");
+    const id = store.getState().scene.placements[0]!.id;
+    store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
+    store.getState().updatePlacementDrag({ x: 3, z: 1.5 });
+
+    const a = livePlacements(store.getState());
+    const b = livePlacements(store.getState());
+    expect(a[0]).not.toBe(b[0]);
+    expect(a[0]).toEqual(b[0]);
+  });
+
+  it("livePlacements returns the stored array untouched when idle", () => {
+    const store = storeWithRoom();
+    store.getState().placeFurniture("sofa-3");
+    expect(livePlacements(store.getState())).toBe(store.getState().scene.placements);
   });
 });
 

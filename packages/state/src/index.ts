@@ -24,6 +24,7 @@ export {
   createEditorStore,
   currentWallSettings,
   historyLabels,
+  livePlacements,
   livePolygon,
   type EditorState,
   type EditorStore,
