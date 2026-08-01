@@ -6,6 +6,7 @@ import { editorStore } from "@/state/editor";
 import { Toolbar } from "./Toolbar";
 import { SettingsPanel } from "./SettingsPanel";
 import { HistoryList } from "./HistoryList";
+import { KeyboardShortcuts } from "./KeyboardShortcuts";
 
 const square = [
   { x: 0, z: 0 },
@@ -118,6 +119,82 @@ describe("SettingsPanel", () => {
 
     run(() => editorStore.getState().undo());
     expect(thickness.value).toBe("0.2");
+  });
+});
+
+describe("KeyboardShortcuts", () => {
+  function press(key: string, init: Partial<KeyboardEventInit> = {}) {
+    act(() => {
+      fireEvent.keyDown(document.activeElement ?? window, {
+        key,
+        metaKey: true,
+        bubbles: true,
+        ...init,
+      });
+    });
+  }
+
+  it("undoes and redoes with Cmd+Z and Cmd+Shift+Z", () => {
+    render(<KeyboardShortcuts />);
+    drawRoom();
+
+    press("z");
+    expect(editorStore.getState().scene.room.walls).toHaveLength(0);
+
+    press("z", { shiftKey: true });
+    expect(editorStore.getState().scene.room.walls).toHaveLength(4);
+  });
+
+  it("redoes with Ctrl+Y", () => {
+    render(<KeyboardShortcuts />);
+    drawRoom();
+    press("z");
+
+    press("y", { metaKey: false, ctrlKey: true });
+    expect(editorStore.getState().scene.room.walls).toHaveLength(4);
+  });
+
+  it("ignores plain Z with no modifier", () => {
+    render(<KeyboardShortcuts />);
+    drawRoom();
+
+    press("z", { metaKey: false });
+    expect(editorStore.getState().scene.room.walls).toHaveLength(4);
+  });
+
+  it("still undoes while a range slider holds focus", () => {
+    // A slider keeps focus after dragging; treating every input as text entry
+    // would silently swallow Cmd+Z right when the user reaches for it.
+    drawRoom();
+    render(
+      <>
+        <KeyboardShortcuts />
+        <SettingsPanel />
+      </>,
+    );
+
+    const thickness = screen.getByLabelText(/Thickness/) as HTMLInputElement;
+    fireEvent.change(thickness, { target: { value: "0.35" } });
+    thickness.focus();
+
+    press("z");
+    expect(editorStore.getState().scene.room.walls[0]?.thickness).toBeCloseTo(0.2);
+  });
+
+  it("leaves text entry alone", () => {
+    render(
+      <>
+        <KeyboardShortcuts />
+        <input type="text" aria-label="note" />
+      </>,
+    );
+    drawRoom();
+
+    const text = screen.getByLabelText("note");
+    text.focus();
+    press("z");
+
+    expect(editorStore.getState().scene.room.walls).toHaveLength(4);
   });
 });
 
