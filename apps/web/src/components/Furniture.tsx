@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { findCatalogItem } from "@layra/state";
+import { findCatalogItem, findCollisions, isBlocked } from "@layra/state";
 import type { Placement } from "@layra/types";
 import { editor, useEditor } from "@/state/editor";
 import { useGroundPointer } from "./useGroundPointer";
@@ -9,11 +9,17 @@ import { useGroundPointer } from "./useGroundPointer";
 interface PieceProps {
   placement: Placement;
   selected: boolean;
+  blocked: boolean;
   onGrab: (id: string, event: PointerEvent) => void;
   onHover: (hovering: boolean) => void;
 }
 
-function Piece({ placement, selected, onGrab, onHover }: PieceProps) {
+function colourFor(selected: boolean, blocked: boolean): string {
+  if (blocked) return selected ? "#f87171" : "#dc2626";
+  return selected ? "#38bdf8" : "#8b7355";
+}
+
+function Piece({ placement, selected, blocked, onGrab, onHover }: PieceProps) {
   const item = findCatalogItem(placement.catalogItemId);
   if (!item) return null;
 
@@ -37,7 +43,7 @@ function Piece({ placement, selected, onGrab, onHover }: PieceProps) {
     >
       <boxGeometry args={[item.footprint.w, item.height, item.footprint.d]} />
       <meshStandardMaterial
-        color={selected ? "#38bdf8" : "#8b7355"}
+        color={colourFor(selected, blocked)}
         roughness={0.7}
         metalness={0}
       />
@@ -49,6 +55,7 @@ export function Furniture() {
   // Subscribe to stable slices and merge here. livePlacements builds a fresh
   // object per call, so as a selector it makes getSnapshot loop forever.
   const stored = useEditor((state) => state.scene.placements);
+  const room = useEditor((state) => state.scene.room);
   const drag = useEditor((state) => state.placementDrag);
   const selectedId = useEditor((state) => state.selectedId);
   const groundAt = useGroundPointer();
@@ -61,6 +68,12 @@ export function Furniture() {
         ? stored.map((p) => (p.id === drag.id ? { ...p, position: drag.position } : p))
         : stored,
     [stored, drag],
+  );
+
+  // Recomputed against the live positions, so the warning tracks the drag.
+  const collisions = useMemo(
+    () => findCollisions(room, placements),
+    [room, placements],
   );
 
   useEffect(() => {
@@ -100,6 +113,7 @@ export function Furniture() {
           key={placement.id}
           placement={placement}
           selected={placement.id === selectedId}
+          blocked={isBlocked(collisions, placement.id)}
           onGrab={grab}
           onHover={setHovered}
         />

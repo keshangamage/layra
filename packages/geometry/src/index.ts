@@ -45,3 +45,12 @@ export {
 } from "./extrude";
 
 export { triangulateFloor, triangulatePolygon } from "./triangulate";
+
+export {
+  convexArea,
+  convexOverlap,
+  expandRect,
+  polygonContains,
+  rectCorners,
+  type Rect,
+} from "./collision";

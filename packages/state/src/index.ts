@@ -19,6 +19,13 @@ export {
 export { CATALOG, findCatalogItem } from "./catalog";
 
 export {
+  findCollisions,
+  isBlocked,
+  placementRect,
+  type CollisionReport,
+} from "./collision";
+
+export {
   DEFAULT_SNAP,
   DEFAULT_WALLS,
   createEditorStore,

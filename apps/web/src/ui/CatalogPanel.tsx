@@ -1,16 +1,32 @@
 "use client";
 
-import { CATALOG } from "@layra/state";
+import { useMemo } from "react";
+import { CATALOG, findCollisions } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 
 export function CatalogPanel() {
   const hasRoom = useEditor((state) => state.scene.room.polygon.length >= 3);
+  const room = useEditor((state) => state.scene.room);
+  const placements = useEditor((state) => state.scene.placements);
+
+  const report = useMemo(
+    () => findCollisions(room, placements),
+    [room, placements],
+  );
+  const blocked = new Set([...report.overlapping, ...report.outOfRoom]).size;
 
   return (
     <section className="border-b border-zinc-800 p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        Furniture
-      </h2>
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Furniture
+        </h2>
+        {blocked > 0 && (
+          <span className="text-[10px] font-medium text-red-400">
+            {blocked} clash{blocked === 1 ? "" : "es"}
+          </span>
+        )}
+      </div>
 
       {!hasRoom ? (
         <p className="mt-2 text-xs text-zinc-600">Draw a room first.</p>
