@@ -1,4 +1,4 @@
-import type { Room, Scene, Vec2, Wall } from "@layra/types";
+import type { Placement, Room, Scene, Vec2, Vec3, Wall } from "@layra/types";
 import { ensureCCW } from "@layra/geometry";
 
 /**
@@ -82,6 +82,61 @@ export function setWallSettings(prev: WallSettings, next: WallSettings): Command
     label: `Set wall ${changed}`,
     do: (scene) => apply(scene, next),
     undo: (scene) => apply(scene, prev),
+  };
+}
+
+export function addPlacement(placement: Placement, label: string): Command {
+  return {
+    label: `Add ${label}`,
+    do: (scene) => ({ ...scene, placements: [...scene.placements, placement] }),
+    undo: (scene) => ({
+      ...scene,
+      placements: scene.placements.filter((p) => p.id !== placement.id),
+    }),
+  };
+}
+
+export function removePlacement(
+  placement: Placement,
+  index: number,
+  label: string,
+): Command {
+  return {
+    label: `Delete ${label}`,
+    do: (scene) => ({
+      ...scene,
+      placements: scene.placements.filter((p) => p.id !== placement.id),
+    }),
+    // Restores at the original index so undo doesn't reorder the list.
+    undo: (scene) => {
+      const next = [...scene.placements];
+      next.splice(Math.min(index, next.length), 0, placement);
+      return { ...scene, placements: next };
+    },
+  };
+}
+
+export function movePlacement(id: string, from: Vec3, to: Vec3): Command {
+  const apply = (scene: Scene, position: Vec3): Scene => ({
+    ...scene,
+    placements: scene.placements.map((p) => (p.id === id ? { ...p, position } : p)),
+  });
+  return {
+    label: "Move furniture",
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
+export function rotatePlacement(id: string, from: number, to: number): Command {
+  const apply = (scene: Scene, rotationY: number): Scene => ({
+    ...scene,
+    placements: scene.placements.map((p) => (p.id === id ? { ...p, rotationY } : p)),
+  });
+  return {
+    label: "Rotate furniture",
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
   };
 }
 

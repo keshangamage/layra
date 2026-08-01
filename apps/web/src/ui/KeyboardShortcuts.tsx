@@ -28,7 +28,20 @@ function isTextEntry(element: EventTarget | null): boolean {
 export function KeyboardShortcuts() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || isTextEntry(event.target)) return;
+      if (isTextEntry(event.target)) return;
+
+      if (!event.metaKey && !event.ctrlKey) {
+        if (event.key === "Delete" || event.key === "Backspace") {
+          if (editor().selectedId === null) return;
+          event.preventDefault();
+          editor().deleteSelected();
+        } else if (event.key.toLowerCase() === "r" && editor().selectedId !== null) {
+          event.preventDefault();
+          // Shift reverses; 15 degrees matches the drawing angle snap.
+          editor().rotateSelected((event.shiftKey ? -1 : 1) * (Math.PI / 12));
+        }
+        return;
+      }
 
       const key = event.key.toLowerCase();
       if (key === "z") {

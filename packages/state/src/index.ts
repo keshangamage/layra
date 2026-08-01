@@ -2,15 +2,21 @@
 // Imports zustand/vanilla only - this package stays free of React.
 
 export {
+  addPlacement,
   closeRoom,
   loadScene,
+  movePlacement,
   moveVertex,
+  removePlacement,
   roomFromPolygon,
+  rotatePlacement,
   setWallSettings,
   wallSettingsOf,
   type Command,
   type WallSettings,
 } from "./commands";
+
+export { CATALOG, findCatalogItem } from "./catalog";
 
 export {
   DEFAULT_SNAP,
