@@ -1,13 +1,14 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
   emptyScene,
+  type Opening,
   type OpeningType,
   type Placement,
   type Scene,
   type Vec2,
   type Vec3,
 } from "@layra/types";
-import { bounds, nearestWallStation, selfIntersects } from "@layra/geometry";
+import { bounds, distance, nearestWallStation, selfIntersects } from "@layra/geometry";
 import { findCatalogItem } from "./catalog";
 import {
   addOpening,
@@ -20,13 +21,21 @@ import {
   removePlacement,
   rotatePlacement,
   setWallSettings,
+  updateOpening,
   wallSettingsOf,
   type Command,
   type WallSettings,
 } from "./commands";
 import { snapPoint } from "./snap";
+import { clampOpening, sameOpening } from "./openings";
 
 export type Mode = "draw" | "edit" | "measure";
+
+/** The editable dimensions of an opening. */
+export type OpeningShape = Pick<
+  Opening,
+  "offset" | "width" | "height" | "sillHeight"
+>;
 
 export interface SnapSettings {
   /** Metres. */
@@ -84,6 +93,10 @@ export interface EditorState {
   armOpening: (type: OpeningType | null) => void;
   placeOpeningAt: (point: Vec2) => boolean;
   deleteOpening: (wallIndex: number, openingId: string) => void;
+
+  selectedOpening: { wallIndex: number; id: string } | null;
+  selectOpening: (ref: { wallIndex: number; id: string } | null) => void;
+  updateSelectedOpening: (patch: Partial<OpeningShape>) => void;
 
   /** Currently selected furniture, or null. */
   selectedId: string | null;
@@ -161,11 +174,29 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     snap: DEFAULT_SNAP,
 
     execute: (command) =>
-      set((state) => ({
-        scene: command.do(state.scene),
-        past: [...state.past, command],
-        future: [],
-      })),
+      set((state) => {
+        const previous = state.past.at(-1);
+        if (command.mergeKey && previous?.mergeKey === command.mergeKey) {
+          // Keep the earlier undo so the whole run reverts in one step. Safe
+          // because commands capture absolute before/after values.
+          const merged: Command = {
+            label: command.label,
+            mergeKey: command.mergeKey,
+            do: command.do,
+            undo: previous.undo,
+          };
+          return {
+            scene: command.do(state.scene),
+            past: [...state.past.slice(0, -1), merged],
+            future: [],
+          };
+        }
+        return {
+          scene: command.do(state.scene),
+          past: [...state.past, command],
+          future: [],
+        };
+      }),
 
     undo: () =>
       set((state) => {
@@ -243,10 +274,13 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         station.wallLength - size.width,
       );
 
-      state.execute(
-        addOpening(station.index, { id: crypto.randomUUID(), type, offset, ...size }),
-      );
-      set({ pendingOpening: null });
+      const opening: Opening = { id: crypto.randomUUID(), type, offset, ...size };
+      state.execute(addOpening(station.index, opening));
+      // Select it so the sliders act on what was just placed.
+      set({
+        pendingOpening: null,
+        selectedOpening: { wallIndex: station.index, id: opening.id },
+      });
       return true;
     },
 
@@ -258,6 +292,32 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const opening = wall.openings[position];
       if (!opening) return;
       state.execute(removeOpening(wallIndex, opening, position));
+      if (state.selectedOpening?.id === openingId) set({ selectedOpening: null });
+    },
+
+    selectedOpening: null,
+
+    selectOpening: (selectedOpening) => set({ selectedOpening }),
+
+    updateSelectedOpening: (patch) => {
+      const state = get();
+      const reference = state.selectedOpening;
+      if (!reference) return;
+
+      const wall = state.scene.room.walls[reference.wallIndex];
+      const opening = wall?.openings.find((o) => o.id === reference.id);
+      if (!wall || !opening) return;
+
+      const next = clampOpening(
+        { ...opening, ...patch },
+        distance(wall.start, wall.end),
+        wall.height,
+      );
+      if (sameOpening(opening, next)) return;
+
+      // Key by field so dragging one slider merges but switching does not.
+      const field = Object.keys(patch)[0] ?? "size";
+      state.execute(updateOpening(reference.wallIndex, opening, next, field));
     },
 
     addDraftPoint: (point) => set((state) => ({ draft: [...state.draft, point] })),
@@ -406,6 +466,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         placementDrag: null,
         selectedId: null,
         pendingOpening: null,
+        selectedOpening: null,
         mode: next.room.polygon.length >= 3 ? "edit" : "draw",
       });
     },

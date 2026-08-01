@@ -17,6 +17,11 @@ export interface Command {
   label: string;
   do(scene: Scene): Scene;
   undo(scene: Scene): Scene;
+  /**
+   * Commands sharing a key collapse into one history entry when executed back
+   * to back, so dragging a slider is one undo rather than fifty.
+   */
+  mergeKey?: string;
 }
 
 export interface WallSettings {
@@ -88,6 +93,7 @@ export function setWallSettings(prev: WallSettings, next: WallSettings): Command
   const changed = prev.height !== next.height ? "height" : "thickness";
   return {
     label: `Set wall ${changed}`,
+    mergeKey: `wall-${changed}`,
     do: (scene) => apply(scene, next),
     undo: (scene) => apply(scene, prev),
   };
@@ -193,6 +199,25 @@ export function removeOpening(
         next.splice(Math.min(position, next.length), 0, opening);
         return { ...wall, openings: next };
       }),
+  };
+}
+
+export function updateOpening(
+  index: number,
+  from: Opening,
+  to: Opening,
+  field: string,
+): Command {
+  const apply = (scene: Scene, opening: Opening): Scene =>
+    mapWall(scene, index, (wall) => ({
+      ...wall,
+      openings: wall.openings.map((o) => (o.id === opening.id ? opening : o)),
+    }));
+  return {
+    label: `Adjust ${to.type} ${field}`,
+    mergeKey: `opening-${to.id}-${field}`,
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
   };
 }
 

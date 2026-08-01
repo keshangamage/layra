@@ -224,3 +224,46 @@ describe("replaceScene", () => {
     expect(store.getState().scene).toEqual(original);
   });
 });
+
+describe("command merging", () => {
+  it("collapses a slider drag into one history entry", () => {
+    const store = storeWithRoom();
+    for (const thickness of [0.25, 0.3, 0.35, 0.4]) {
+      store.getState().applyWallSettings({ thickness });
+    }
+    // Draw room, plus one merged thickness entry.
+    expect(store.getState().past).toHaveLength(2);
+    expect(store.getState().scene.room.walls[0]?.thickness).toBeCloseTo(0.4);
+  });
+
+  it("undoes the whole run at once", () => {
+    const store = storeWithRoom();
+    for (const thickness of [0.25, 0.3, 0.4]) {
+      store.getState().applyWallSettings({ thickness });
+    }
+    store.getState().undo();
+    expect(store.getState().scene.room.walls[0]?.thickness).toBeCloseTo(0.2);
+  });
+
+  it("does not merge across different properties", () => {
+    const store = storeWithRoom();
+    store.getState().applyWallSettings({ thickness: 0.3 });
+    store.getState().applyWallSettings({ height: 3 });
+    expect(store.getState().past).toHaveLength(3);
+  });
+
+  it("does not merge when another command intervenes", () => {
+    const store = storeWithRoom();
+    store.getState().applyWallSettings({ thickness: 0.3 });
+    store.getState().placeFurniture("desk");
+    store.getState().applyWallSettings({ thickness: 0.4 });
+    expect(store.getState().past).toHaveLength(4);
+  });
+
+  it("leaves unkeyed commands alone", () => {
+    const store = storeWithRoom();
+    store.getState().placeFurniture("desk");
+    store.getState().placeFurniture("desk");
+    expect(store.getState().past).toHaveLength(3);
+  });
+});

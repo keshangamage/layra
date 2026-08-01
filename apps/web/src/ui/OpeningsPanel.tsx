@@ -1,14 +1,67 @@
 "use client";
 
-import type { OpeningType } from "@layra/types";
-import { formatLength } from "@layra/geometry";
+import type { Opening, OpeningType } from "@layra/types";
+import { distance, formatLength } from "@layra/geometry";
+import { MIN_OPENING, type OpeningShape } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
+
+interface SliderProps {
+  label: string;
+  value: number;
+  max: number;
+  field: keyof OpeningShape;
+}
+
+function Slider({ label, value, max, field }: SliderProps) {
+  return (
+    <label className="block">
+      <span className="flex items-baseline justify-between text-[11px] text-zinc-400">
+        {label}
+        <span className="font-mono text-zinc-200">{value.toFixed(2)} m</span>
+      </span>
+      <input
+        type="range"
+        min={0}
+        max={Math.max(max, 0)}
+        step={0.05}
+        value={value}
+        onChange={(event) =>
+          editor().updateSelectedOpening({ [field]: Number(event.target.value) })
+        }
+        className="mt-1 w-full accent-sky-500"
+      />
+    </label>
+  );
+}
+
+function Shape({ opening, wallLength, wallHeight }: {
+  opening: Opening;
+  wallLength: number;
+  wallHeight: number;
+}) {
+  return (
+    <div className="mt-3 space-y-2 rounded bg-zinc-900 p-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+        Selected {opening.type}
+      </p>
+      <Slider label="Position" value={opening.offset} max={wallLength - opening.width} field="offset" />
+      <Slider label="Width" value={opening.width} max={wallLength} field="width" />
+      <Slider label="Height" value={opening.height} max={wallHeight - opening.sillHeight} field="height" />
+      <Slider label="Sill" value={opening.sillHeight} max={wallHeight - opening.height} field="sillHeight" />
+      <p className="text-[10px] text-zinc-600">Minimum {MIN_OPENING} m.</p>
+    </div>
+  );
+}
 
 const TYPES: OpeningType[] = ["door", "window"];
 
 export function OpeningsPanel() {
   const walls = useEditor((state) => state.scene.room.walls);
   const pending = useEditor((state) => state.pendingOpening);
+  const selectedRef = useEditor((state) => state.selectedOpening);
+
+  const selectedWall = selectedRef ? walls[selectedRef.wallIndex] : undefined;
+  const selected = selectedWall?.openings.find((o) => o.id === selectedRef?.id);
 
   const total = walls.reduce((sum, wall) => sum + wall.openings.length, 0);
 
@@ -49,7 +102,14 @@ export function OpeningsPanel() {
                 wall.openings.map((opening) => (
                   <li
                     key={opening.id}
-                    className="flex items-baseline justify-between rounded px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-900"
+                    onClick={() =>
+                      editor().selectOpening({ wallIndex: index, id: opening.id })
+                    }
+                    className={`flex cursor-pointer items-baseline justify-between rounded px-2 py-1 text-xs hover:bg-zinc-900 ${
+                      selected?.id === opening.id
+                        ? "bg-zinc-800 text-zinc-100"
+                        : "text-zinc-300"
+                    }`}
                   >
                     <span className="capitalize">
                       {opening.type}
@@ -61,7 +121,10 @@ export function OpeningsPanel() {
                       </span>
                       <button
                         type="button"
-                        onClick={() => editor().deleteOpening(index, opening.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          editor().deleteOpening(index, opening.id);
+                        }}
                         className="text-zinc-500 hover:text-red-400"
                         aria-label={`Delete ${opening.type} on wall ${index + 1}`}
                       >
@@ -72,6 +135,14 @@ export function OpeningsPanel() {
                 )),
               )}
             </ul>
+          )}
+
+          {selected && selectedWall && (
+            <Shape
+              opening={selected}
+              wallLength={distance(selectedWall.start, selectedWall.end)}
+              wallHeight={selectedWall.height}
+            />
           )}
         </>
       )}

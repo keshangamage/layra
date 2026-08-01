@@ -13,6 +13,7 @@ export {
   roomFromPolygon,
   rotatePlacement,
   setWallSettings,
+  updateOpening,
   wallSettingsOf,
   type Command,
   type WallSettings,
@@ -40,6 +41,7 @@ export {
   type EditorState,
   type EditorStore,
   type Mode,
+  type OpeningShape,
   type SnapSettings,
 } from "./store";
 
@@ -48,3 +50,5 @@ export { snapFrom, snapPoint, snapToGrid } from "./snap";
 export { parseScene, serializeScene, type ParseResult } from "./serialize";
 
 export { sceneToSvg, type SvgOptions } from "./svg";
+
+export { MIN_OPENING, clampOpening, sameOpening } from "./openings";

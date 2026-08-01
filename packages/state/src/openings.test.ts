@@ -155,3 +155,109 @@ describe("persistence", () => {
     expect(s.getState().pendingOpening).toBeNull();
   });
 });
+
+describe("editing", () => {
+  function storeWithDoor() {
+    const s = storeWithRoom();
+    s.getState().armOpening("door");
+    s.getState().placeOpeningAt({ x: 3, z: 0 });
+    return s;
+  }
+
+  const opening = (s: ReturnType<typeof storeWithRoom>) =>
+    s.getState().scene.room.walls[0]!.openings[0]!;
+
+  it("selects the opening it just placed", () => {
+    const s = storeWithDoor();
+    expect(s.getState().selectedOpening).toEqual({
+      wallIndex: 0,
+      id: opening(s).id,
+    });
+  });
+
+  it("moves along the wall", () => {
+    const s = storeWithDoor();
+    s.getState().updateSelectedOpening({ offset: 1 });
+    expect(opening(s).offset).toBeCloseTo(1);
+  });
+
+  it("clamps rather than refusing, unlike placement", () => {
+    const s = storeWithDoor();
+    s.getState().updateSelectedOpening({ offset: 99 });
+    // Wall is 6m, door is 0.9m wide.
+    expect(opening(s).offset).toBeCloseTo(5.1);
+
+    s.getState().updateSelectedOpening({ offset: -5 });
+    expect(opening(s).offset).toBe(0);
+  });
+
+  it("keeps width within the wall and above the minimum", () => {
+    const s = storeWithDoor();
+    s.getState().updateSelectedOpening({ width: 99 });
+    expect(opening(s).width).toBeCloseTo(6);
+
+    s.getState().updateSelectedOpening({ width: 0.01 });
+    expect(opening(s).width).toBeCloseTo(0.3);
+  });
+
+  it("never lets sill plus height exceed the wall", () => {
+    const s = storeWithDoor();
+    s.getState().updateSelectedOpening({ sillHeight: 99 });
+    const o = opening(s);
+    expect(o.sillHeight + o.height).toBeLessThanOrEqual(2.5 + 1e-9);
+  });
+
+  it("pulls the opening back when width grows past the end", () => {
+    const s = storeWithDoor();
+    s.getState().updateSelectedOpening({ offset: 5.1 });
+    s.getState().updateSelectedOpening({ width: 2 });
+    const o = opening(s);
+    expect(o.offset + o.width).toBeLessThanOrEqual(6 + 1e-9);
+  });
+
+  it("merges a slider drag into one history entry", () => {
+    const s = storeWithDoor();
+    const before = s.getState().past.length;
+    for (const offset of [1, 1.5, 2, 2.5]) {
+      s.getState().updateSelectedOpening({ offset });
+    }
+    expect(s.getState().past).toHaveLength(before + 1);
+  });
+
+  it("does not merge across different fields", () => {
+    const s = storeWithDoor();
+    const before = s.getState().past.length;
+    s.getState().updateSelectedOpening({ offset: 1 });
+    s.getState().updateSelectedOpening({ width: 1.2 });
+    expect(s.getState().past).toHaveLength(before + 2);
+  });
+
+  it("undoes a whole drag at once", () => {
+    const s = storeWithDoor();
+    const original = opening(s).offset;
+    for (const offset of [1, 2, 3]) s.getState().updateSelectedOpening({ offset });
+    s.getState().undo();
+    expect(opening(s).offset).toBeCloseTo(original);
+  });
+
+  it("records nothing when the value does not change", () => {
+    const s = storeWithDoor();
+    const before = s.getState().past.length;
+    s.getState().updateSelectedOpening({ offset: opening(s).offset });
+    expect(s.getState().past).toHaveLength(before);
+  });
+
+  it("does nothing without a selection", () => {
+    const s = storeWithDoor();
+    s.getState().selectOpening(null);
+    const before = s.getState().past.length;
+    s.getState().updateSelectedOpening({ offset: 1 });
+    expect(s.getState().past).toHaveLength(before);
+  });
+
+  it("clears the selection when the opening is deleted", () => {
+    const s = storeWithDoor();
+    s.getState().deleteOpening(0, opening(s).id);
+    expect(s.getState().selectedOpening).toBeNull();
+  });
+});
