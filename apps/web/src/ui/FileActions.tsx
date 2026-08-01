@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { parseScene, serializeScene } from "@layra/state";
+import { parseScene, sceneToSvg, serializeScene } from "@layra/state";
 import { editor } from "@/state/editor";
 
 const BUTTON =
@@ -11,17 +11,20 @@ export function FileActions() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const save = () => {
-    const blob = new Blob([serializeScene(editor().scene)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
+  const download = (contents: string, filename: string, type: string) => {
+    const url = URL.createObjectURL(new Blob([contents], { type }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = "layra-scene.json";
+    link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const save = () =>
+    download(serializeScene(editor().scene), "layra-scene.json", "application/json");
+
+  const exportSvg = () =>
+    download(sceneToSvg(editor().scene), "layra-plan.svg", "image/svg+xml");
 
   const load = async (file: File) => {
     const result = parseScene(await file.text());
@@ -41,6 +44,9 @@ export function FileActions() {
       </button>
       <button type="button" className={BUTTON} onClick={() => inputRef.current?.click()}>
         Load
+      </button>
+      <button type="button" className={BUTTON} onClick={exportSvg}>
+        Export SVG
       </button>
 
       <input
