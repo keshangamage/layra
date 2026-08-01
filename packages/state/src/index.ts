@@ -19,6 +19,7 @@ export {
 export { CATALOG, findCatalogItem } from "./catalog";
 
 export {
+  clearanceRect,
   findCollisions,
   isBlocked,
   placementRect,

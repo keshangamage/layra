@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { findCatalogItem, findCollisions, isBlocked } from "@layra/state";
+import {
+  clearanceRect,
+  findCatalogItem,
+  findCollisions,
+  isBlocked,
+} from "@layra/state";
+import type { Rect } from "@layra/geometry";
 import type { Placement } from "@layra/types";
 import { editor, useEditor } from "@/state/editor";
 import { useGroundPointer } from "./useGroundPointer";
@@ -10,16 +16,36 @@ interface PieceProps {
   placement: Placement;
   selected: boolean;
   blocked: boolean;
+  crowded: boolean;
   onGrab: (id: string, event: PointerEvent) => void;
   onHover: (hovering: boolean) => void;
 }
 
-function colourFor(selected: boolean, blocked: boolean): string {
+function colourFor(selected: boolean, blocked: boolean, crowded: boolean): string {
   if (blocked) return selected ? "#f87171" : "#dc2626";
+  if (crowded) return selected ? "#fbbf24" : "#b45309";
   return selected ? "#38bdf8" : "#8b7355";
 }
 
-function Piece({ placement, selected, blocked, onGrab, onHover }: PieceProps) {
+/** Flat patch showing the space a piece needs kept free. */
+function ClearanceZone({ rect, crowded }: { rect: Rect; crowded: boolean }) {
+  return (
+    <mesh
+      position={[rect.center.x, 0.004, rect.center.z]}
+      rotation={[-Math.PI / 2, 0, -rect.rotationY]}
+    >
+      <planeGeometry args={[rect.w, rect.d]} />
+      <meshBasicMaterial
+        color={crowded ? "#f59e0b" : "#38bdf8"}
+        transparent
+        opacity={0.16}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
+function Piece({ placement, selected, blocked, crowded, onGrab, onHover }: PieceProps) {
   const item = findCatalogItem(placement.catalogItemId);
   if (!item) return null;
 
@@ -43,7 +69,7 @@ function Piece({ placement, selected, blocked, onGrab, onHover }: PieceProps) {
     >
       <boxGeometry args={[item.footprint.w, item.height, item.footprint.d]} />
       <meshStandardMaterial
-        color={colourFor(selected, blocked)}
+        color={colourFor(selected, blocked, crowded)}
         roughness={0.7}
         metalness={0}
       />
@@ -75,6 +101,12 @@ export function Furniture() {
     () => findCollisions(room, placements),
     [room, placements],
   );
+
+  // Only the selected piece shows its zone, or the floor turns to soup.
+  const selectedZone = useMemo(() => {
+    const selected = placements.find((p) => p.id === selectedId);
+    return selected ? clearanceRect(selected) : null;
+  }, [placements, selectedId]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -108,12 +140,19 @@ export function Furniture() {
 
   return (
     <group>
+      {selectedZone && (
+        <ClearanceZone
+          rect={selectedZone}
+          crowded={selectedId !== null && collisions.crowded.has(selectedId)}
+        />
+      )}
       {placements.map((placement) => (
         <Piece
           key={placement.id}
           placement={placement}
           selected={placement.id === selectedId}
           blocked={isBlocked(collisions, placement.id)}
+          crowded={collisions.crowded.has(placement.id)}
           onGrab={grab}
           onHover={setHovered}
         />

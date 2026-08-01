@@ -52,5 +52,6 @@ export {
   expandRect,
   polygonContains,
   rectCorners,
+  type Clearance,
   type Rect,
 } from "./collision";

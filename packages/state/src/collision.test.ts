@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Placement, Room } from "@layra/types";
-import { findCollisions, isBlocked, placementRect } from "./collision";
+import { clearanceRect, findCollisions, isBlocked, placementRect } from "./collision";
 import { roomFromPolygon } from "./commands";
 
 const room: Room = roomFromPolygon(
@@ -79,6 +79,80 @@ describe("overlap detection", () => {
     const report = findCollisions(room, []);
     expect(report.overlapping.size).toBe(0);
     expect(report.outOfRoom.size).toBe(0);
+  });
+});
+
+describe("clearance", () => {
+  it("builds a zone from the catalog clearance", () => {
+    // Sofa is 2.1 x 0.9 with 0.7 front, 0.1 sides, 0 back.
+    const zone = clearanceRect(place("sofa-3", 3, 2.5));
+    expect(zone?.w).toBeCloseTo(2.3);
+    expect(zone?.d).toBeCloseTo(1.6);
+  });
+
+  it("returns null when an item needs no clearance", () => {
+    // Wardrobe has zero sides and back, but a front walkway, so it has a zone.
+    expect(clearanceRect(place("wardrobe", 1, 1))).not.toBeNull();
+  });
+
+  it("flags the owner when a piece sits in its walkway", () => {
+    // Sofa faces -Z, so its 0.7m walkway runs from z=2.05 to z=1.35.
+    const sofa = place("sofa-3", 3, 2.5);
+    const chair = place("dining-chair", 3, 1.7);
+    const report = findCollisions(room, [sofa, chair]);
+
+    expect(report.crowded.has(sofa.id)).toBe(true);
+    expect(report.overlapping.size).toBe(0);
+  });
+
+  it("does not flag the intruder, only the owner of the zone", () => {
+    // A bookshelf faces away from the sofa, so the sofa sits outside the
+    // shelf's own zone even while the shelf blocks the sofa's walkway.
+    const sofa = place("sofa-3", 3, 2.5);
+    const shelf = place("bookshelf", 3, 1.7);
+    const report = findCollisions(room, [sofa, shelf]);
+
+    expect(report.crowded.has(sofa.id)).toBe(true);
+    expect(report.crowded.has(shelf.id)).toBe(false);
+  });
+
+  it("flags both when each blocks the other's walkway", () => {
+    // Two chairs facing each other legitimately crowd one another.
+    const a = place("dining-chair", 3, 2.5);
+    const b = place("dining-chair", 3, 1.9);
+    const report = findCollisions(room, [a, b]);
+    expect(report.crowded).toEqual(new Set([a.id, b.id]));
+  });
+
+  it("stays clear when the walkway is respected", () => {
+    const sofa = place("sofa-3", 3, 3.5);
+    const chair = place("dining-chair", 3, 1.2);
+    expect(findCollisions(room, [sofa, chair]).crowded.size).toBe(0);
+  });
+
+  it("follows rotation", () => {
+    // Same shelf position, two sofa orientations. Unrotated the zone reaches
+    // z=2.95 and misses; turned a quarter turn it reaches 3.65 and catches.
+    const shelf = place("bookshelf", 3, 3.3);
+
+    const upright = place("sofa-3", 3, 2.5);
+    expect(findCollisions(room, [upright, shelf]).crowded.has(upright.id)).toBe(false);
+
+    const turned = place("sofa-3", 3, 2.5, Math.PI / 2);
+    expect(findCollisions(room, [turned, shelf]).crowded.has(turned.id)).toBe(true);
+  });
+
+  it("ignores wall-mounted pieces", () => {
+    const shelf = place("wall-shelf", 3, 2.5);
+    const desk = place("desk", 3, 2.5);
+    expect(findCollisions(room, [shelf, desk]).crowded.size).toBe(0);
+  });
+
+  it("is advisory, not a clash", () => {
+    const sofa = place("sofa-3", 3, 2.5);
+    const chair = place("dining-chair", 3, 1.7);
+    const report = findCollisions(room, [sofa, chair]);
+    expect(isBlocked(report, sofa.id)).toBe(false);
   });
 });
 

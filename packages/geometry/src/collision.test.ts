@@ -3,6 +3,7 @@ import type { Vec2 } from "@layra/types";
 import {
   convexArea,
   convexOverlap,
+  expandRect,
   polygonContains,
   rectCorners,
   type Rect,
@@ -106,6 +107,69 @@ describe("convexOverlap", () => {
 
   it("ignores degenerate input", () => {
     expect(convexOverlap([], rectCorners(rect(0, 0, 1, 1)))).toBe(false);
+  });
+});
+
+describe("expandRect", () => {
+  const none = { front: 0, sides: 0, back: 0 };
+
+  it("is a no-op with zero clearance", () => {
+    const base = rect(2, 3, 2, 1, 0.4);
+    expect(expandRect(base, none)).toEqual(base);
+  });
+
+  it("widens symmetrically for side clearance", () => {
+    const grown = expandRect(rect(0, 0, 2, 1), { ...none, sides: 0.25 });
+    expect(grown.w).toBeCloseTo(2.5);
+    expect(grown.center).toEqual({ x: 0, z: 0 });
+  });
+
+  it("extends toward -Z for front clearance and shifts the centre", () => {
+    // A sofa with 0.7m in front and nothing behind keeps its back edge put.
+    const grown = expandRect(rect(0, 0, 2, 1), { ...none, front: 0.7 });
+    expect(grown.d).toBeCloseTo(1.7);
+    expect(grown.center.z).toBeCloseTo(-0.35);
+
+    const zs = rectCorners(grown).map((c) => c.z);
+    expect(Math.min(...zs)).toBeCloseTo(-1.2);
+    expect(Math.max(...zs)).toBeCloseTo(0.5);
+  });
+
+  it("extends toward +Z for back clearance", () => {
+    const grown = expandRect(rect(0, 0, 2, 1), { ...none, back: 0.4 });
+    const zs = rectCorners(grown).map((c) => c.z);
+    expect(Math.min(...zs)).toBeCloseTo(-0.5);
+    expect(Math.max(...zs)).toBeCloseTo(0.9);
+  });
+
+  it("leaves the centre alone when front and back match", () => {
+    const grown = expandRect(rect(1, 1, 2, 1), { front: 0.3, sides: 0, back: 0.3 });
+    expect(grown.center.x).toBeCloseTo(1);
+    expect(grown.center.z).toBeCloseTo(1);
+    expect(grown.d).toBeCloseTo(1.6);
+  });
+
+  it("follows the piece's rotation", () => {
+    // Turned a quarter turn, front clearance now runs along -X.
+    const grown = expandRect(rect(0, 0, 2, 1, Math.PI / 2), { ...none, front: 0.7 });
+    const xs = rectCorners(grown).map((c) => c.x);
+    expect(Math.min(...xs)).toBeCloseTo(-1.2);
+    expect(Math.max(...xs)).toBeCloseTo(0.5);
+  });
+
+  it("keeps the footprint strictly inside when every side grows", () => {
+    const base = rect(1, 2, 1.4, 0.7, 0.9);
+    const grown = expandRect(base, { front: 0.8, sides: 0.1, back: 0.2 });
+    expect(polygonContains(rectCorners(base), rectCorners(grown))).toBe(true);
+  });
+
+  it("shares an edge when a side has no clearance", () => {
+    // Zero back clearance leaves the back edges collinear, which containment
+    // reports as touching rather than inside. Clearance checks therefore test
+    // for intrusion, never for containment.
+    const base = rect(0, 0, 2, 1);
+    const grown = expandRect(base, { front: 0.8, sides: 0.1, back: 0 });
+    expect(polygonContains(rectCorners(base), rectCorners(grown))).toBe(false);
   });
 });
 

@@ -97,16 +97,22 @@ export function polygonContains(
   return true;
 }
 
-/** Expands a footprint by its per-side clearance, in local axes. */
-export function expandRect(
-  rect: Rect,
-  clearance: { front: number; sides: number; back: number },
-): Rect {
+export interface Clearance {
+  front: number;
+  sides: number;
+  back: number;
+}
+
+/**
+ * Grows a footprint by its per-side clearance. Front is -Z in local axes, so
+ * uneven front and back shift the centre as well as widening the box.
+ */
+export function expandRect(rect: Rect, clearance: Clearance): Rect {
+  const shift = (clearance.back - clearance.front) / 2;
   return {
     center: {
-      // Front is -Z locally, so the extra depth shifts the centre backwards.
-      x: rect.center.x + Math.sin(rect.rotationY) * ((clearance.back - clearance.front) / 2),
-      z: rect.center.z + Math.cos(rect.rotationY) * ((clearance.back - clearance.front) / 2),
+      x: rect.center.x + Math.sin(rect.rotationY) * shift,
+      z: rect.center.z + Math.cos(rect.rotationY) * shift,
     },
     w: rect.w + clearance.sides * 2,
     d: rect.d + clearance.front + clearance.back,

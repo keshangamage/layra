@@ -1,6 +1,7 @@
 import type { Placement, Room } from "@layra/types";
 import {
   convexOverlap,
+  expandRect,
   polygonContains,
   rectCorners,
   wallLoops,
@@ -13,6 +14,8 @@ export interface CollisionReport {
   overlapping: Set<string>;
   /** Pieces not fully inside the inner wall face. */
   outOfRoom: Set<string>;
+  /** Pieces whose clearance another piece intrudes into. Advisory, not a clash. */
+  crowded: Set<string>;
 }
 
 export function placementRect(placement: Placement): Rect | null {
@@ -30,6 +33,16 @@ export function isBlocked(report: CollisionReport, id: string): boolean {
   return report.overlapping.has(id) || report.outOfRoom.has(id);
 }
 
+/** Clearance zone of a placement, or null when it has no clearance at all. */
+export function clearanceRect(placement: Placement): Rect | null {
+  const item = findCatalogItem(placement.catalogItemId);
+  const rect = placementRect(placement);
+  if (!item || !rect) return null;
+  const { front, sides, back } = item.clearance;
+  if (front === 0 && sides === 0 && back === 0) return null;
+  return expandRect(rect, item.clearance);
+}
+
 /**
  * Footprint overlaps and room containment. Containment uses the inner wall
  * face, since that is the usable floor.
@@ -40,18 +53,20 @@ export function findCollisions(
 ): CollisionReport {
   const overlapping = new Set<string>();
   const outOfRoom = new Set<string>();
+  const crowded = new Set<string>();
 
   const entries = placements
     .map((placement) => ({
       placement,
       item: findCatalogItem(placement.catalogItemId),
-      corners: placementRect(placement),
+      rect: placementRect(placement),
     }))
-    .filter((entry) => entry.item && entry.corners)
+    .filter((entry) => entry.item && entry.rect)
     .map((entry) => ({
       id: entry.placement.id,
       wallMounted: entry.item!.wallMounted,
-      corners: rectCorners(entry.corners!),
+      corners: rectCorners(entry.rect!),
+      clearance: clearanceRect(entry.placement),
     }));
 
   const thickness = room.walls[0]?.thickness ?? 0;
@@ -77,5 +92,19 @@ export function findCollisions(
     }
   }
 
-  return { overlapping, outOfRoom };
+  // Crowding is directional: a chair in a sofa's walkway is the sofa's
+  // problem, not the chair's, so only the owner of the zone is flagged.
+  for (const owner of entries) {
+    if (!owner.clearance || owner.wallMounted) continue;
+    const zone = rectCorners(owner.clearance);
+    for (const other of entries) {
+      if (other.id === owner.id || other.wallMounted) continue;
+      if (convexOverlap(zone, other.corners)) {
+        crowded.add(owner.id);
+        break;
+      }
+    }
+  }
+
+  return { overlapping, outOfRoom, crowded };
 }
