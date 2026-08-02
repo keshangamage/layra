@@ -7,7 +7,8 @@ import type {
   Vec3,
   Wall,
 } from "@layra/types";
-import { ensureCCW } from "@layra/geometry";
+import { distance, ensureCCW } from "@layra/geometry";
+import { clampOpening } from "./openings";
 
 /**
  * Pure transform. Commands capture explicit before/after values at construction
@@ -68,19 +69,63 @@ export function closeRoom(polygon: readonly Vec2[], settings: WallSettings): Com
   };
 }
 
-export function moveVertex(index: number, from: Vec2, to: Vec2): Command {
-  const apply = (scene: Scene, position: Vec2): Scene => {
+/** Rebuilds walls for a new polygon, carrying openings across by wall index. */
+function roomWithOpenings(
+  polygon: readonly Vec2[],
+  settings: WallSettings,
+  floorMaterial: string,
+  openings: readonly (readonly Opening[])[],
+  clampToFit: boolean,
+): Room {
+  const room = roomFromPolygon(polygon, settings, floorMaterial);
+  return {
+    ...room,
+    walls: room.walls.map((wall, i) => {
+      const carried = openings[i] ?? [];
+      if (!clampToFit) return { ...wall, openings: [...carried] };
+      const length = distance(wall.start, wall.end);
+      return {
+        ...wall,
+        openings: carried.map((o) => clampOpening(o, length, wall.height)),
+      };
+    }),
+  };
+}
+
+/**
+ * Moving a vertex resizes two walls, so openings are carried across and pulled
+ * back inside. The originals are captured here rather than recomputed, so undo
+ * restores their exact positions instead of the clamped ones.
+ */
+export function moveVertex(
+  index: number,
+  from: Vec2,
+  to: Vec2,
+  fromOpenings: readonly (readonly Opening[])[],
+): Command {
+  const apply = (
+    scene: Scene,
+    position: Vec2,
+    openings: readonly (readonly Opening[])[],
+    clampToFit: boolean,
+  ): Scene => {
     const polygon = scene.room.polygon.map((p, i) => (i === index ? position : p));
     const settings = wallSettingsOf(scene, { height: 2.5, thickness: 0.2 });
     return withRoom(
       scene,
-      roomFromPolygon(polygon, settings, scene.room.floorMaterial),
+      roomWithOpenings(
+        polygon,
+        settings,
+        scene.room.floorMaterial,
+        openings,
+        clampToFit,
+      ),
     );
   };
   return {
     label: `Move vertex ${index + 1}`,
-    do: (scene) => apply(scene, to),
-    undo: (scene) => apply(scene, from),
+    do: (scene) => apply(scene, to, fromOpenings, true),
+    undo: (scene) => apply(scene, from, fromOpenings, false),
   };
 }
 

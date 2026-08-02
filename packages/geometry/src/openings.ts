@@ -1,5 +1,5 @@
 import type { Vec2 } from "@layra/types";
-import { EPSILON, distance, dot, sub } from "./math";
+import { EPSILON, distance, dot, leftNormal, sub } from "./math";
 import { ensureCCW } from "./polygon";
 
 /** Where a point lands along the nearest wall of a room. */
@@ -99,6 +99,55 @@ export function resolveOpenings(
     kept.push(span);
   }
   return kept;
+}
+
+/** An opening's footprint in plan, for drawing it on a floor plan. */
+export interface OpeningFootprint {
+  /** The four corners of the gap, spanning the wall thickness. */
+  gap: Vec2[];
+  /** Inner-face corner at the opening's start, where a door hinges. */
+  hinge: Vec2;
+  /** Unit vector along the wall, from start to end. */
+  along: Vec2;
+  /** Unit vector pointing into the room. */
+  inward: Vec2;
+}
+
+/**
+ * Where an opening sits in plan. Measured from the wall centerline, so the gap
+ * spans the full thickness either side.
+ */
+export function openingFootprint(
+  wallStart: Vec2,
+  wallEnd: Vec2,
+  opening: { offset: number; width: number },
+  thickness: number,
+): OpeningFootprint | null {
+  const edge = sub(wallEnd, wallStart);
+  const length = Math.hypot(edge.x, edge.z);
+  if (length < EPSILON) return null;
+
+  const along = { x: edge.x / length, z: edge.z / length };
+  const inward = leftNormal(along);
+  const half = thickness / 2;
+
+  const at = (u: number) => ({
+    x: wallStart.x + along.x * u,
+    z: wallStart.z + along.z * u,
+  });
+  const start = at(opening.offset);
+  const end = at(opening.offset + opening.width);
+  const shift = (p: Vec2, s: number) => ({
+    x: p.x + inward.x * s,
+    z: p.z + inward.z * s,
+  });
+
+  return {
+    gap: [shift(start, half), shift(end, half), shift(end, -half), shift(start, -half)],
+    hinge: shift(start, half),
+    along,
+    inward,
+  };
 }
 
 /** Rectangle of wall face left solid around the openings. */

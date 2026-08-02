@@ -261,3 +261,66 @@ describe("editing", () => {
     expect(s.getState().selectedOpening).toBeNull();
   });
 });
+
+describe("surviving a vertex drag", () => {
+  function storeWithDoorOn(wallIndex: number, x: number, z: number) {
+    const s = storeWithRoom();
+    s.getState().armOpening("door");
+    s.getState().placeOpeningAt({ x, z });
+    expect(s.getState().scene.room.walls[wallIndex]!.openings).toHaveLength(1);
+    return s;
+  }
+
+  it("keeps openings when a vertex moves", () => {
+    // Regression: rebuilding walls from the polygon used to drop every opening.
+    const s = storeWithDoorOn(0, 3, 0);
+    s.getState().beginDrag(1);
+    s.getState().updateDrag({ x: 7, z: 0 });
+    s.getState().endDrag();
+
+    expect(s.getState().scene.room.walls[0]!.openings).toHaveLength(1);
+  });
+
+  it("keeps openings on walls the drag did not touch", () => {
+    const s = storeWithDoorOn(2, 3, 4);
+    s.getState().beginDrag(0);
+    s.getState().updateDrag({ x: -1, z: 0 });
+    s.getState().endDrag();
+    expect(s.getState().scene.room.walls[2]!.openings).toHaveLength(1);
+  });
+
+  it("pulls an opening back inside a shortened wall", () => {
+    const s = storeWithDoorOn(0, 5.5, 0);
+    const before = s.getState().scene.room.walls[0]!.openings[0]!;
+    expect(before.offset).toBeCloseTo(5.05);
+
+    // Shrink wall 0 from 6m to 3m.
+    s.getState().beginDrag(1);
+    s.getState().updateDrag({ x: 3, z: 0 });
+    s.getState().endDrag();
+
+    const after = s.getState().scene.room.walls[0]!.openings[0]!;
+    expect(after.offset + after.width).toBeLessThanOrEqual(3 + 1e-9);
+  });
+
+  it("restores the exact original offset on undo, not the clamped one", () => {
+    const s = storeWithDoorOn(0, 5.5, 0);
+    const original = s.getState().scene.room.walls[0]!.openings[0]!.offset;
+
+    s.getState().beginDrag(1);
+    s.getState().updateDrag({ x: 3, z: 0 });
+    s.getState().endDrag();
+    s.getState().undo();
+
+    expect(s.getState().scene.room.walls[0]!.openings[0]!.offset).toBeCloseTo(original);
+  });
+
+  it("keeps opening ids stable across the move", () => {
+    const s = storeWithDoorOn(0, 3, 0);
+    const id = s.getState().scene.room.walls[0]!.openings[0]!.id;
+    s.getState().beginDrag(1);
+    s.getState().updateDrag({ x: 7, z: 0 });
+    s.getState().endDrag();
+    expect(s.getState().scene.room.walls[0]!.openings[0]!.id).toBe(id);
+  });
+});

@@ -353,7 +353,14 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       set({ dragging: null });
       // One history entry per gesture, and nothing at all if it didn't move.
       if (!from || (from.x === drag.position.x && from.z === drag.position.z)) return;
-      state.execute(moveVertex(drag.index, from, drag.position));
+      state.execute(
+        moveVertex(
+          drag.index,
+          from,
+          drag.position,
+          state.scene.room.walls.map((wall) => wall.openings),
+        ),
+      );
     },
 
     applyWallSettings: (partial) => {

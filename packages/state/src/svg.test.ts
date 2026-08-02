@@ -138,3 +138,43 @@ describe("escaping", () => {
     }
   });
 });
+
+describe("openings", () => {
+  function sceneWithDoor(type: "door" | "window" = "door"): Scene {
+    const scene = sceneWithRoom();
+    scene.room.walls[0]!.openings.push({
+      id: "o1",
+      type,
+      offset: 1.5,
+      width: 0.9,
+      height: type === "door" ? 2.05 : 1.1,
+      sillHeight: type === "door" ? 0 : 0.9,
+    });
+    return scene;
+  }
+
+  it("draws a swing arc for a door", () => {
+    const svg = sceneToSvg(sceneWithDoor("door"));
+    expect(svg).toContain("stroke-dasharray");
+  });
+
+  it("draws pane lines for a window, not a swing", () => {
+    const svg = sceneToSvg(sceneWithDoor("window"));
+    expect(svg).not.toContain("stroke-dasharray");
+  });
+
+  it("adds geometry compared with a plain wall", () => {
+    const plain = sceneToSvg(sceneWithRoom()).match(/<path/g)?.length ?? 0;
+    const withDoor = sceneToSvg(sceneWithDoor()).match(/<path/g)?.length ?? 0;
+    expect(withDoor).toBeGreaterThan(plain);
+  });
+
+  it("omits openings when asked", () => {
+    const svg = sceneToSvg(sceneWithDoor(), { showOpenings: false });
+    expect(svg).not.toContain("stroke-dasharray");
+  });
+
+  it("stays valid with no NaN", () => {
+    expect(sceneToSvg(sceneWithDoor())).not.toContain("NaN");
+  });
+});

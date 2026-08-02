@@ -49,7 +49,9 @@ export { triangulateFloor, triangulatePolygon } from "./triangulate";
 export {
   facePanels,
   nearestWallStation,
+  openingFootprint,
   resolveOpenings,
+  type OpeningFootprint,
   type OpeningSpan,
   type Panel,
   type WallStation,

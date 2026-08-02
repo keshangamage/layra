@@ -4,6 +4,7 @@ import {
   ensureCCW,
   formatArea,
   formatLength,
+  openingFootprint,
   polygonArea,
   rectCorners,
   wallLoops,
@@ -18,6 +19,7 @@ export interface SvgOptions {
   showDimensions?: boolean;
   showFurniture?: boolean;
   showLabels?: boolean;
+  showOpenings?: boolean;
 }
 
 const DEFAULTS = {
@@ -26,6 +28,7 @@ const DEFAULTS = {
   showDimensions: true,
   showFurniture: true,
   showLabels: true,
+  showOpenings: true,
 };
 
 function escapeText(value: string): string {
@@ -114,6 +117,68 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
     `<path d="${pathOf(outer, to)} ${pathOf(inner, to)}" fill="#d4d4d8" fill-rule="evenodd" stroke="#27272a" stroke-width="1.5"/>`,
   );
   parts.push(`<path d="${pathOf(inner, to)}" fill="#fafafa" stroke="none"/>`);
+
+  // Openings: erase the wall across the gap, then draw the symbol. A door gets
+  // a leaf and swing arc, a window a pane line.
+  if (opts.showOpenings) {
+    for (const wall of scene.room.walls) {
+      for (const opening of wall.openings) {
+        const plan = openingFootprint(wall.start, wall.end, opening, wall.thickness);
+        if (!plan) continue;
+
+        parts.push(
+          `<path d="${pathOf(plan.gap, to)}" fill="#fafafa" stroke="none"/>`,
+        );
+
+        const a = to(plan.gap[0]!);
+        const b = to(plan.gap[1]!);
+        const c = to(plan.gap[3]!);
+        const d = to(plan.gap[2]!);
+
+        if (opening.type === "window") {
+          // Pane line down the middle of the gap.
+          parts.push(
+            `<path d="M${n((a.x + c.x) / 2)} ${n((a.y + c.y) / 2)} L${n((b.x + d.x) / 2)} ${n((b.y + d.y) / 2)}" stroke="#27272a" stroke-width="1" fill="none"/>`,
+          );
+          parts.push(
+            `<path d="M${n(a.x)} ${n(a.y)} L${n(b.x)} ${n(b.y)} M${n(c.x)} ${n(c.y)} L${n(d.x)} ${n(d.y)}" stroke="#27272a" stroke-width="1" fill="none"/>`,
+          );
+          continue;
+        }
+
+        // Door: leaf swung a quarter turn into the room, plus its arc.
+        const hinge = to(plan.hinge);
+        const leaf = to({
+          x: plan.hinge.x + plan.inward.x * opening.width,
+          z: plan.hinge.z + plan.inward.z * opening.width,
+        });
+        const swing: string[] = [];
+        const steps = 12;
+        for (let s = 0; s <= steps; s++) {
+          const angle = (s / steps) * (Math.PI / 2);
+          const world = {
+            x:
+              plan.hinge.x +
+              (plan.inward.x * Math.cos(angle) + plan.along.x * Math.sin(angle)) *
+                opening.width,
+            z:
+              plan.hinge.z +
+              (plan.inward.z * Math.cos(angle) + plan.along.z * Math.sin(angle)) *
+                opening.width,
+          };
+          const point = to(world);
+          swing.push(`${s === 0 ? "M" : "L"}${n(point.x)} ${n(point.y)}`);
+        }
+
+        parts.push(
+          `<path d="M${n(hinge.x)} ${n(hinge.y)} L${n(leaf.x)} ${n(leaf.y)}" stroke="#52525b" stroke-width="1" fill="none"/>`,
+        );
+        parts.push(
+          `<path d="${swing.join(" ")}" stroke="#a1a1aa" stroke-width="0.75" fill="none" stroke-dasharray="3 2"/>`,
+        );
+      }
+    }
+  }
 
   for (const piece of furniture) {
     parts.push(

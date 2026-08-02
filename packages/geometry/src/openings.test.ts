@@ -3,6 +3,7 @@ import type { Vec2 } from "@layra/types";
 import {
   facePanels,
   nearestWallStation,
+  openingFootprint,
   resolveOpenings,
   type WallOpening,
 } from "./openings";
@@ -240,5 +241,54 @@ describe("nearestWallStation", () => {
   it("returns null without a room", () => {
     expect(nearestWallStation([], { x: 0, z: 0 })).toBeNull();
     expect(nearestWallStation([{ x: 0, z: 0 }], { x: 0, z: 0 })).toBeNull();
+  });
+});
+
+describe("openingFootprint", () => {
+  const start: Vec2 = { x: 0, z: 0 };
+  const end: Vec2 = { x: 4, z: 0 };
+
+  it("spans the full wall thickness", () => {
+    const plan = openingFootprint(start, end, { offset: 1, width: 0.9 }, 0.2)!;
+    const zs = plan.gap.map((p) => p.z);
+    expect(Math.max(...zs) - Math.min(...zs)).toBeCloseTo(0.2);
+  });
+
+  it("spans the opening width along the wall", () => {
+    const plan = openingFootprint(start, end, { offset: 1, width: 0.9 }, 0.2)!;
+    const xs = plan.gap.map((p) => p.x);
+    expect(Math.min(...xs)).toBeCloseTo(1);
+    expect(Math.max(...xs)).toBeCloseTo(1.9);
+  });
+
+  it("hinges on the inner face at the opening's start", () => {
+    const plan = openingFootprint(start, end, { offset: 1, width: 0.9 }, 0.2)!;
+    expect(plan.hinge.x).toBeCloseTo(1);
+    expect(plan.hinge.z).toBeCloseTo(0.1);
+  });
+
+  it("reports unit axes", () => {
+    const plan = openingFootprint(start, end, { offset: 0, width: 1 }, 0.2)!;
+    expect(Math.hypot(plan.along.x, plan.along.z)).toBeCloseTo(1);
+    expect(Math.hypot(plan.inward.x, plan.inward.z)).toBeCloseTo(1);
+    // Axes are perpendicular.
+    expect(plan.along.x * plan.inward.x + plan.along.z * plan.inward.z).toBeCloseTo(0);
+  });
+
+  it("follows a wall running the other way", () => {
+    const plan = openingFootprint({ x: 4, z: 3 }, { x: 0, z: 3 }, { offset: 1, width: 1 }, 0.2)!;
+    const xs = plan.gap.map((p) => p.x);
+    expect(Math.min(...xs)).toBeCloseTo(2);
+    expect(Math.max(...xs)).toBeCloseTo(3);
+  });
+
+  it("emits four corners with no NaN", () => {
+    const plan = openingFootprint(start, { x: 3, z: 3 }, { offset: 1, width: 1 }, 0.25)!;
+    expect(plan.gap).toHaveLength(4);
+    for (const p of plan.gap) expect(Number.isFinite(p.x)).toBe(true);
+  });
+
+  it("returns null for a degenerate wall", () => {
+    expect(openingFootprint(start, start, { offset: 0, width: 1 }, 0.2)).toBeNull();
   });
 });
