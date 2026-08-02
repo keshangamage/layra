@@ -319,6 +319,36 @@ export function transformPlacement(
   };
 }
 
+export function setPlacementLock(id: string, locked: boolean): Command {
+  const apply = (scene: Scene, value: boolean): Scene => ({
+    ...scene,
+    placements: scene.placements.map((p) => (p.id === id ? { ...p, locked: value } : p)),
+  });
+  return {
+    label: locked ? "Lock furniture" : "Unlock furniture",
+    do: (scene) => apply(scene, locked),
+    undo: (scene) => apply(scene, !locked),
+  };
+}
+
+/** Absolute angle, unlike rotatePlacement's delta, so a slider can merge. */
+export function setPlacementRotation(
+  id: string,
+  from: number,
+  to: number,
+): Command {
+  const apply = (scene: Scene, rotationY: number): Scene => ({
+    ...scene,
+    placements: scene.placements.map((p) => (p.id === id ? { ...p, rotationY } : p)),
+  });
+  return {
+    label: "Rotate furniture",
+    mergeKey: `rotate-${id}`,
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
 export function rotatePlacement(id: string, from: number, to: number): Command {
   const apply = (scene: Scene, rotationY: number): Scene => ({
     ...scene,

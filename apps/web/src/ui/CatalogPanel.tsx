@@ -60,7 +60,7 @@ export function CatalogPanel() {
       {hasRoom && (
         <p className="mt-2 text-[11px] text-zinc-600">
           {pending
-            ? "Click in the room to place it - Esc to cancel."
+            ? "Click to place - snaps to walls, hold Alt for any angle."
             : "Pick an item, then click where it goes."}
         </p>
       )}

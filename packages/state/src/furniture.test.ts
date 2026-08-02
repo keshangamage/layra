@@ -163,12 +163,16 @@ describe("dragging furniture", () => {
     return store;
   }
 
+  /** Drags bypass wall snapping; snapping has its own tests. */
+  const dragTo = (s: ReturnType<typeof storeWithSofa>, x: number, z: number) =>
+    s.getState().updatePlacementDrag({ x, z }, true);
+
   it("keeps the grab offset instead of centring on the pointer", () => {
     const store = storeWithSofa();
     const id = store.getState().scene.placements[0]!.id;
     // Piece sits at (2, 1.5); grab it 0.5m to its right.
     store.getState().beginPlacementDrag(id, { x: 2.5, z: 1.5 });
-    store.getState().updatePlacementDrag({ x: 3.5, z: 1.5 });
+    store.getState().updatePlacementDrag({ x: 3.5, z: 1.5 }, true);
 
     // Pointer moved 1m, so the piece moves 1m, not to the pointer itself.
     expect(livePlacements(store.getState())[0]?.position).toEqual({
@@ -182,7 +186,7 @@ describe("dragging furniture", () => {
     const store = storeWithSofa();
     const id = store.getState().scene.placements[0]!.id;
     store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
-    store.getState().updatePlacementDrag({ x: 3, z: 2 });
+    dragTo(store, 3, 2);
 
     expect(livePlacements(store.getState())[0]?.position.x).toBeCloseTo(3);
     expect(store.getState().scene.placements[0]?.position.x).toBeCloseTo(2);
@@ -193,7 +197,7 @@ describe("dragging furniture", () => {
     const store = storeWithSofa();
     const id = store.getState().scene.placements[0]!.id;
     store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
-    store.getState().updatePlacementDrag({ x: 2.937, z: 1.53 });
+    dragTo(store, 2.937, 1.53);
 
     const position = livePlacements(store.getState())[0]!.position;
     expect(position.x).toBeCloseTo(2.9);
@@ -204,7 +208,7 @@ describe("dragging furniture", () => {
     const store = storeWithSofa();
     const id = store.getState().scene.placements[0]!.id;
     store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
-    store.getState().updatePlacementDrag({ x: 3, z: 2 });
+    dragTo(store, 3, 2);
     store.getState().endPlacementDrag();
     expect(store.getState().scene.placements[0]?.position.y).toBe(0);
   });
@@ -213,7 +217,7 @@ describe("dragging furniture", () => {
     const store = storeWithSofa();
     const id = store.getState().scene.placements[0]!.id;
     store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
-    for (const x of [2.5, 3, 3.5]) store.getState().updatePlacementDrag({ x, z: 1.5 });
+    for (const x of [2.5, 3, 3.5]) dragTo(store, x, 1.5);
     store.getState().endPlacementDrag();
 
     expect(store.getState().past).toHaveLength(3);
@@ -234,7 +238,7 @@ describe("dragging furniture", () => {
     const store = storeWithSofa();
     const id = store.getState().scene.placements[0]!.id;
     store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
-    store.getState().updatePlacementDrag({ x: 3, z: 2 });
+    dragTo(store, 3, 2);
     store.getState().endPlacementDrag();
     store.getState().undo();
 
@@ -261,7 +265,7 @@ describe("dragging furniture", () => {
 
   it("ignores updates with no drag in progress", () => {
     const store = storeWithSofa();
-    store.getState().updatePlacementDrag({ x: 9, z: 9 });
+    dragTo(store, 9, 9);
     store.getState().endPlacementDrag();
     expect(store.getState().scene.placements[0]?.position.x).toBeCloseTo(2);
   });
@@ -272,7 +276,7 @@ describe("dragging furniture", () => {
     const sofaId = store.getState().scene.placements[0]!.id;
 
     store.getState().beginPlacementDrag(sofaId, { x: 2, z: 1.5 });
-    store.getState().updatePlacementDrag({ x: 3, z: 1.5 });
+    dragTo(store, 3, 1.5);
 
     expect(livePlacements(store.getState())[1]?.position.x).toBeCloseTo(2);
   });
@@ -297,7 +301,7 @@ describe("selector reference stability", () => {
     store.getState().placeFurniture("sofa-3");
     const id = store.getState().scene.placements[0]!.id;
     store.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
-    store.getState().updatePlacementDrag({ x: 3, z: 1.5 });
+    store.getState().updatePlacementDrag({ x: 3, z: 1.5 }, true);
 
     const a = livePlacements(store.getState());
     const b = livePlacements(store.getState());
@@ -331,7 +335,8 @@ describe("click to place", () => {
   it("places where the click landed, not at the room centre", () => {
     const s = storeWithRoom();
     s.getState().armFurniture("desk");
-    expect(s.getState().placeFurnitureAt({ x: 1.23, z: 0.57 })).toBe(true);
+    // freeform, so this measures the click position rather than wall snapping.
+    expect(s.getState().placeFurnitureAt({ x: 1.23, z: 0.57 }, true)).toBe(true);
 
     // Snapped to the 0.1m grid.
     expect(s.getState().scene.placements[0]?.position).toEqual({
@@ -447,5 +452,97 @@ describe("duplicate", () => {
     s.getState().selectPlacement(null);
     s.getState().duplicateSelected();
     expect(s.getState().scene.placements).toHaveLength(0);
+  });
+});
+
+describe("locking", () => {
+  function storeWithDesk() {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 2, z: 1.5 }, true);
+    return s;
+  }
+
+  const desk = (s: ReturnType<typeof storeWithDesk>) =>
+    s.getState().scene.placements[0]!;
+
+  it("toggles and is undoable", () => {
+    const s = storeWithDesk();
+    expect(desk(s).locked).toBe(false);
+
+    s.getState().toggleSelectedLock();
+    expect(desk(s).locked).toBe(true);
+    expect(s.getState().past.at(-1)?.label).toBe("Lock furniture");
+
+    s.getState().undo();
+    expect(desk(s).locked).toBe(false);
+  });
+
+  it("toggles back off", () => {
+    const s = storeWithDesk();
+    s.getState().toggleSelectedLock();
+    s.getState().toggleSelectedLock();
+    expect(desk(s).locked).toBe(false);
+    expect(s.getState().past.at(-1)?.label).toBe("Unlock furniture");
+  });
+
+  it("blocks moving, rotating and deleting once locked", () => {
+    const s = storeWithDesk();
+    s.getState().toggleSelectedLock();
+    const before = desk(s);
+
+    s.getState().beginPlacementDrag(before.id, { x: 2, z: 1.5 });
+    expect(s.getState().placementDrag).toBeNull();
+
+    s.getState().setSelectedRotation(1);
+    s.getState().rotateSelected(1);
+    expect(desk(s).rotationY).toBe(before.rotationY);
+
+    s.getState().deleteSelected();
+    expect(s.getState().scene.placements).toHaveLength(1);
+  });
+
+  it("does nothing without a selection", () => {
+    const s = storeWithDesk();
+    s.getState().selectPlacement(null);
+    s.getState().toggleSelectedLock();
+    expect(desk(s).locked).toBe(false);
+  });
+});
+
+describe("absolute rotation", () => {
+  function storeWithDesk() {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 2, z: 1.5 }, true);
+    return s;
+  }
+
+  it("sets the angle rather than adding to it", () => {
+    const s = storeWithDesk();
+    s.getState().setSelectedRotation(Math.PI / 2);
+    s.getState().setSelectedRotation(Math.PI / 4);
+    expect(s.getState().scene.placements[0]?.rotationY).toBeCloseTo(Math.PI / 4);
+  });
+
+  it("collapses a slider drag into one history entry", () => {
+    const s = storeWithDesk();
+    const before = s.getState().past.length;
+    for (const angle of [0.2, 0.4, 0.6, 0.8]) s.getState().setSelectedRotation(angle);
+    expect(s.getState().past).toHaveLength(before + 1);
+  });
+
+  it("undoes the whole drag at once", () => {
+    const s = storeWithDesk();
+    for (const angle of [0.2, 0.4, 0.6]) s.getState().setSelectedRotation(angle);
+    s.getState().undo();
+    expect(s.getState().scene.placements[0]?.rotationY).toBe(0);
+  });
+
+  it("records nothing when the angle is unchanged", () => {
+    const s = storeWithDesk();
+    const before = s.getState().past.length;
+    s.getState().setSelectedRotation(0);
+    expect(s.getState().past).toHaveLength(before);
   });
 });

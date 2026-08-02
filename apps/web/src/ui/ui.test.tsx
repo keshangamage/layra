@@ -6,6 +6,7 @@ import { editorStore } from "@/state/editor";
 import { Toolbar } from "./Toolbar";
 import { SettingsPanel } from "./SettingsPanel";
 import { HistoryList } from "./HistoryList";
+import { SelectionPanel } from "./SelectionPanel";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 
 const square = [
@@ -247,5 +248,71 @@ describe("HistoryList", () => {
     run(() => editorStore.getState().undo());
     expect(screen.getByText("Draw room (4 walls)")).toBeDefined();
     expect(editorStore.getState().future).toHaveLength(1);
+  });
+});
+
+describe("SelectionPanel", () => {
+  function withDesk() {
+    drawRoom();
+    run(() => {
+      editorStore.getState().armFurniture("desk");
+      editorStore.getState().placeFurnitureAt({ x: 2, z: 1.5 }, true);
+    });
+  }
+
+  it("shows nothing without a selection", () => {
+    drawRoom();
+    const { container } = render(<SelectionPanel />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("shows the rotation in degrees, not radians", () => {
+    withDesk();
+    run(() => editorStore.getState().setSelectedRotation(Math.PI / 2));
+    render(<SelectionPanel />);
+    expect(screen.getByText("90°")).toBeDefined();
+  });
+
+  it("normalises past a full turn", () => {
+    withDesk();
+    run(() => editorStore.getState().setSelectedRotation(Math.PI * 2.5));
+    render(<SelectionPanel />);
+    expect(screen.getByText("90°")).toBeDefined();
+  });
+
+  it("writes rotation changes back to the scene", () => {
+    withDesk();
+    render(<SelectionPanel />);
+    const slider = screen.getByLabelText(/Rotation/) as HTMLInputElement;
+    fireEvent.change(slider, { target: { value: "180" } });
+    expect(editorStore.getState().scene.placements[0]?.rotationY).toBeCloseTo(Math.PI);
+  });
+
+  it("locks and unlocks the selection", () => {
+    withDesk();
+    render(<SelectionPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Lock" }));
+    expect(editorStore.getState().scene.placements[0]?.locked).toBe(true);
+    expect(screen.getByRole("button", { name: "Unlock" })).toBeDefined();
+  });
+
+  it("disables editing while locked", () => {
+    withDesk();
+    render(<SelectionPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Lock" }));
+
+    expect(
+      (screen.getByLabelText(/Rotation/) as HTMLInputElement).disabled,
+    ).toBe(true);
+    expect(screen.getByRole("button", { name: "Delete" }).hasAttribute("disabled")).toBe(
+      true,
+    );
+  });
+
+  it("reports whether the piece fits", () => {
+    withDesk();
+    render(<SelectionPanel />);
+    expect(screen.getByText("Fits")).toBeDefined();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_MOUNT_HEIGHT, mountToWall } from "./mounting";
+import { DEFAULT_MOUNT_HEIGHT, mountToWall, snapFloorToWall } from "./mounting";
 import { findCatalogItem } from "./catalog";
 import { roomFromPolygon } from "./commands";
 import { createEditorStore } from "./store";
@@ -164,5 +164,111 @@ describe("placing wall-mounted furniture", () => {
 
     s.getState().replaceScene(s.getState().scene);
     expect(s.getState().scene.placements[0]).toEqual(placed);
+  });
+});
+
+describe("snapFloorToWall", () => {
+  const sofa = findCatalogItem("sofa-3")!;
+
+  it("snaps a piece whose back is near a wall", () => {
+    // Sofa is 0.9 deep, wall half-thickness 0.1, so its back is at z-0.55.
+    const snapped = snapFloorToWall(room, { x: 3, z: 0.6 }, sofa);
+    expect(snapped).not.toBeNull();
+    expect(snapped!.position.z).toBeCloseTo(0.1 + 0.45);
+  });
+
+  it("leaves a piece out in the room alone", () => {
+    expect(snapFloorToWall(room, { x: 3, z: 2 }, sofa)).toBeNull();
+  });
+
+  it("keeps it on the floor", () => {
+    expect(snapFloorToWall(room, { x: 3, z: 0.6 }, sofa)!.position.y).toBe(0);
+  });
+
+  it("turns the piece to face into the room", () => {
+    const snapped = snapFloorToWall(room, { x: 3, z: 0.6 }, sofa)!;
+    const front = {
+      x: -Math.sin(snapped.rotationY),
+      z: -Math.cos(snapped.rotationY),
+    };
+    expect(front.z).toBeCloseTo(1);
+  });
+
+  it("measures the gap from the back edge, so depth does not change the reach", () => {
+    // A deep piece and a shallow one placed the same distance from the wall
+    // should both snap, because the threshold is measured from their backs.
+    const shallow = findCatalogItem("bookshelf")!;
+    const centre = 0.1 + shallow.footprint.d / 2 + 0.2;
+    expect(snapFloorToWall(room, { x: 3, z: centre }, shallow)).not.toBeNull();
+
+    const deepCentre = 0.1 + sofa.footprint.d / 2 + 0.2;
+    expect(snapFloorToWall(room, { x: 3, z: deepCentre }, sofa)).not.toBeNull();
+  });
+
+  it("honours a custom threshold", () => {
+    expect(snapFloorToWall(room, { x: 3, z: 1.4 }, sofa)).toBeNull();
+    expect(snapFloorToWall(room, { x: 3, z: 1.4 }, sofa, 2)).not.toBeNull();
+  });
+});
+
+describe("snapping while placing and dragging", () => {
+  function storeWithRoom() {
+    const store = createEditorStore();
+    for (const point of [
+      { x: 0, z: 0 },
+      { x: 6, z: 0 },
+      { x: 6, z: 4 },
+      { x: 0, z: 4 },
+    ]) {
+      store.getState().addDraftPoint(point);
+    }
+    store.getState().closeDraft();
+    return store;
+  }
+
+  it("places a sofa flat against the wall it was dropped near", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("sofa-3");
+    s.getState().placeFurnitureAt({ x: 3, z: 0.6 });
+
+    const placed = s.getState().scene.placements[0]!;
+    expect(placed.position.z).toBeCloseTo(0.55);
+    expect(placed.rotationY).not.toBe(0);
+  });
+
+  it("leaves it where clicked when Alt bypasses the snap", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("sofa-3");
+    s.getState().placeFurnitureAt({ x: 3, z: 0.6 }, true);
+
+    const placed = s.getState().scene.placements[0]!;
+    expect(placed.position.z).toBeCloseTo(0.6);
+    expect(placed.rotationY).toBe(0);
+  });
+
+  it("snaps mid-drag when pulled close to a wall", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("sofa-3");
+    s.getState().placeFurnitureAt({ x: 3, z: 2 }, true);
+    const id = s.getState().scene.placements[0]!.id;
+
+    s.getState().beginPlacementDrag(id, { x: 3, z: 2 });
+    s.getState().updatePlacementDrag({ x: 3, z: 0.6 });
+    s.getState().endPlacementDrag();
+
+    expect(s.getState().scene.placements[0]!.position.z).toBeCloseTo(0.55);
+  });
+
+  it("releases the snap when dragged back into the room", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("sofa-3");
+    s.getState().placeFurnitureAt({ x: 3, z: 0.6 });
+    const id = s.getState().scene.placements[0]!.id;
+
+    s.getState().beginPlacementDrag(id, { x: 3, z: 0.55 });
+    s.getState().updatePlacementDrag({ x: 3, z: 2.55 });
+    s.getState().endPlacementDrag();
+
+    expect(s.getState().scene.placements[0]!.position.z).toBeGreaterThan(1.5);
   });
 });

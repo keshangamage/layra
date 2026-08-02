@@ -118,7 +118,7 @@ export function Furniture() {
 
     const onMove = (event: PointerEvent) => {
       const point = groundAt(event);
-      if (point) editor().updatePlacementDrag(point);
+      if (point) editor().updatePlacementDrag(point, event.altKey);
     };
     const onUp = () => editor().endPlacementDrag();
 

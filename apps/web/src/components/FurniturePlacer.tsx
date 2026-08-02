@@ -8,6 +8,7 @@ import {
   findCollisions,
   isBlocked,
   mountToWall,
+  snapFloorToWall,
   snapPoint,
 } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
@@ -21,6 +22,7 @@ const GHOST_ID = "__ghost";
 export function FurniturePlacer() {
   const pending = useEditor((state) => state.pendingFurniture);
   const ghost = useEditor((state) => state.furnitureGhost);
+  const freeform = useEditor((state) => state.freeformPlacement);
   const room = useEditor((state) => state.scene.room);
   const placements = useEditor((state) => state.scene.placements);
   const domElement = useThree((state) => state.gl.domElement);
@@ -36,6 +38,7 @@ export function FurniturePlacer() {
       const point = groundAt(event);
       editor().setFurnitureGhost(
         point ? snapPoint(point, editor().snap.grid) : null,
+        event.altKey,
       );
     };
 
@@ -49,7 +52,7 @@ export function FurniturePlacer() {
       // Let OrbitControls keep the left button for orbiting.
       if (Math.hypot(event.clientX - pressX, event.clientY - pressY) > CLICK_SLOP) return;
       const point = groundAt(event);
-      if (point) editor().placeFurnitureAt(point);
+      if (point) editor().placeFurnitureAt(point, event.altKey);
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -75,8 +78,9 @@ export function FurniturePlacer() {
   const preview = useMemo(() => {
     if (!item || !ghost) return null;
     if (item.wallMounted) return mountToWall(room, ghost, item);
-    return { position: { x: ghost.x, y: 0, z: ghost.z }, rotationY: 0 };
-  }, [item, ghost, room]);
+    const snapped = freeform ? null : snapFloorToWall(room, ghost, item);
+    return snapped ?? { position: { x: ghost.x, y: 0, z: ghost.z }, rotationY: 0 };
+  }, [item, ghost, room, freeform]);
 
   // Test the ghost against the real scene so it warns before you commit.
   const blocked = useMemo(() => {

@@ -21,6 +21,8 @@ import {
   removePlacement,
   removeVertex,
   rotatePlacement,
+  setPlacementLock,
+  setPlacementRotation,
   setWallSettings,
   transformPlacement,
   updateOpening,
@@ -30,7 +32,7 @@ import {
 } from "./commands";
 import { snapPoint } from "./snap";
 import { clampOpening, sameOpening } from "./openings";
-import { mountToWall } from "./mounting";
+import { mountToWall, snapFloorToWall } from "./mounting";
 
 export type Mode = "draw" | "edit" | "measure";
 
@@ -114,8 +116,10 @@ export interface EditorState {
   /** Ground point the ghost preview follows while armed. */
   furnitureGhost: Vec2 | null;
   armFurniture: (catalogItemId: string | null) => void;
-  setFurnitureGhost: (point: Vec2 | null) => void;
-  placeFurnitureAt: (point: Vec2) => boolean;
+  setFurnitureGhost: (point: Vec2 | null, freeform?: boolean) => void;
+  /** True while the snap-bypass modifier is held. */
+  freeformPlacement: boolean;
+  placeFurnitureAt: (point: Vec2, freeform?: boolean) => boolean;
   duplicateSelected: () => void;
 
   /** Currently selected furniture, or null. */
@@ -124,6 +128,8 @@ export interface EditorState {
   placeFurniture: (catalogItemId: string) => void;
   deleteSelected: () => void;
   rotateSelected: (radians: number) => void;
+  setSelectedRotation: (radians: number) => void;
+  toggleSelectedLock: () => void;
 
   /** Transient, like `dragging`, so history gets one entry per gesture. */
   placementDrag: {
@@ -134,7 +140,7 @@ export interface EditorState {
     rotationY?: number;
   } | null;
   beginPlacementDrag: (id: string, pointer: Vec2) => void;
-  updatePlacementDrag: (pointer: Vec2) => void;
+  updatePlacementDrag: (pointer: Vec2, freeform?: boolean) => void;
   endPlacementDrag: () => void;
 }
 
@@ -456,9 +462,12 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     armFurniture: (pendingFurniture) =>
       set({ pendingFurniture, pendingOpening: null, furnitureGhost: null }),
 
-    setFurnitureGhost: (furnitureGhost) => set({ furnitureGhost }),
+    freeformPlacement: false,
 
-    placeFurnitureAt: (point) => {
+    setFurnitureGhost: (furnitureGhost, freeform = false) =>
+      set({ furnitureGhost, freeformPlacement: freeform }),
+
+    placeFurnitureAt: (point, freeform = false) => {
       const state = get();
       const catalogItemId = state.pendingFurniture;
       const item = catalogItemId ? findCatalogItem(catalogItemId) : undefined;
@@ -467,7 +476,9 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const snapped = snapPoint(point, state.snap.grid);
       const mounted = item.wallMounted
         ? mountToWall(state.scene.room, snapped, item)
-        : null;
+        : freeform
+          ? null
+          : snapFloorToWall(state.scene.room, snapped, item);
       const placement: Placement = {
         id: crypto.randomUUID(),
         catalogItemId,
@@ -537,6 +548,23 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       set({ selectedId: null });
     },
 
+    setSelectedRotation: (radians) => {
+      const state = get();
+      const placement = state.scene.placements.find((p) => p.id === state.selectedId);
+      if (!placement || placement.locked) return;
+      if (placement.rotationY === radians) return;
+      state.execute(
+        setPlacementRotation(placement.id, placement.rotationY, radians),
+      );
+    },
+
+    toggleSelectedLock: () => {
+      const state = get();
+      const placement = state.scene.placements.find((p) => p.id === state.selectedId);
+      if (!placement) return;
+      state.execute(setPlacementLock(placement.id, !placement.locked));
+    },
+
     rotateSelected: (radians) => {
       const state = get();
       const placement = state.scene.placements.find((p) => p.id === state.selectedId);
@@ -565,7 +593,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       });
     },
 
-    updatePlacementDrag: (pointer) =>
+    updatePlacementDrag: (pointer, freeform = false) =>
       set((state) => {
         const drag = state.placementDrag;
         if (!drag) return state;
@@ -576,9 +604,13 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
         const placement = state.scene.placements.find((p) => p.id === drag.id);
         const item = placement ? findCatalogItem(placement.catalogItemId) : undefined;
-        if (item?.wallMounted) {
-          // Wall pieces stay on a wall; dragging slides them along it.
-          const mounted = mountToWall(state.scene.room, snapped, item);
+        if (item) {
+          // Wall pieces always ride a wall; floor pieces only snap when near one.
+          const mounted = item.wallMounted
+            ? mountToWall(state.scene.room, snapped, item)
+            : freeform
+              ? null
+              : snapFloorToWall(state.scene.room, snapped, item);
           if (mounted) {
             return {
               placementDrag: {
@@ -590,10 +622,12 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
           }
         }
 
+        // Out in the room, or bypassed: keep whatever rotation it has.
         return {
           placementDrag: {
             ...drag,
             position: { x: snapped.x, y: 0, z: snapped.z },
+            rotationY: placement?.rotationY,
           },
         };
       }),

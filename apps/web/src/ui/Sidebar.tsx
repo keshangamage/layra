@@ -4,6 +4,7 @@ import { SettingsPanel } from "./SettingsPanel";
 import { RoomStats } from "./RoomStats";
 import { OpeningsPanel } from "./OpeningsPanel";
 import { CatalogPanel } from "./CatalogPanel";
+import { SelectionPanel } from "./SelectionPanel";
 import { HistoryList } from "./HistoryList";
 
 export function Sidebar() {
@@ -13,6 +14,7 @@ export function Sidebar() {
       <RoomStats />
       <OpeningsPanel />
       <CatalogPanel />
+      <SelectionPanel />
       <HistoryList />
     </aside>
   );

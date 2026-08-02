@@ -14,6 +14,8 @@ export {
   removeVertex,
   roomFromPolygon,
   rotatePlacement,
+  setPlacementLock,
+  setPlacementRotation,
   setWallSettings,
   transformPlacement,
   updateOpening,
@@ -24,7 +26,13 @@ export {
 
 export { CATALOG, findCatalogItem } from "./catalog";
 
-export { DEFAULT_MOUNT_HEIGHT, mountToWall, type Mounted } from "./mounting";
+export {
+  DEFAULT_MOUNT_HEIGHT,
+  WALL_SNAP_DISTANCE,
+  mountToWall,
+  snapFloorToWall,
+  type Mounted,
+} from "./mounting";
 
 export {
   clearanceRect,

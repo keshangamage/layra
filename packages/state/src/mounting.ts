@@ -9,6 +9,9 @@ export interface Mounted {
 /** Default underside height when a catalog item does not state one. */
 export const DEFAULT_MOUNT_HEIGHT = 1.4;
 
+/** How close a piece's back must come to a wall before it snaps flat. */
+export const WALL_SNAP_DISTANCE = 0.45;
+
 /**
  * Places a wall-mounted item flat against the nearest wall.
  *
@@ -19,6 +22,7 @@ export function mountToWall(
   room: Room,
   point: Vec2,
   item: CatalogItem,
+  y?: number,
 ): Mounted | null {
   const station = nearestWallStation(room.polygon, point);
   if (!station) return null;
@@ -48,10 +52,34 @@ export function mountToWall(
   return {
     position: {
       x: start.x + direction.x * along + inward.x * standoff,
-      y: item.mountHeight ?? DEFAULT_MOUNT_HEIGHT,
+      y: y ?? item.mountHeight ?? DEFAULT_MOUNT_HEIGHT,
       z: start.z + direction.z * along + inward.z * standoff,
     },
     // A piece's front is -Z locally; aim it along the inward normal.
     rotationY: Math.atan2(-inward.x, -inward.z),
   };
+}
+
+/**
+ * Aligns a floor piece flat against a wall when its back comes close enough.
+ *
+ * Returns null when the piece is out in the room, so dragging only snaps near
+ * a wall rather than dragging everything to the edges.
+ */
+export function snapFloorToWall(
+  room: Room,
+  point: Vec2,
+  item: CatalogItem,
+  distance = WALL_SNAP_DISTANCE,
+): Mounted | null {
+  const station = nearestWallStation(room.polygon, point);
+  if (!station) return null;
+
+  const thickness = room.walls[0]?.thickness ?? 0;
+  // Measured from the piece's back edge, not its centre, so wide and narrow
+  // pieces snap at the same visual gap.
+  const gap = station.distance - thickness / 2 - item.footprint.d / 2;
+  if (gap > distance) return null;
+
+  return mountToWall(room, point, item, 0);
 }
