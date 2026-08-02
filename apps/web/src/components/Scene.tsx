@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
+import { Vector3 } from "three";
 import { bounds } from "@layra/geometry";
 import { currentWallSettings, livePolygon } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
@@ -76,8 +77,22 @@ export default function Scene() {
     <>
     <Canvas
       key={canvasKey}
-      onCreated={({ gl }) => {
+      onCreated={({ gl, camera }) => {
         const canvas = gl.domElement;
+        if (process.env.NEXT_PUBLIC_E2E === "1") {
+          (window as unknown as Record<string, unknown>).__layraProject = (
+            x: number,
+            z: number,
+            y = 0,
+          ) => {
+            const v = new Vector3(x, y, z).project(camera);
+            const rect = canvas.getBoundingClientRect();
+            return {
+              x: rect.left + ((v.x + 1) / 2) * rect.width,
+              y: rect.top + ((1 - v.y) / 2) * rect.height,
+            };
+          };
+        }
         canvas.addEventListener("webglcontextlost", (event) => {
           // Required, or the browser never attempts to restore the context.
           event.preventDefault();
@@ -113,8 +128,16 @@ export default function Scene() {
       <Furniture />
       <DraftPolyline />
       <VertexHandles />
-      <Dimensions />
-      <MeasureTool />
+      {/*
+        Text suspends while troika fetches its font. Without its own boundary
+        that suspension reaches the dynamic() boundary above, which hides the
+        whole canvas with display:none until the font resolves - or forever,
+        if the network never answers.
+      */}
+      <Suspense fallback={null}>
+        <Dimensions />
+        <MeasureTool />
+      </Suspense>
       <DrawController />
 
       <Grid

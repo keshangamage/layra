@@ -6,6 +6,7 @@ import { useThree } from "@react-three/fiber";
 import { distance, formatLength } from "@layra/geometry";
 import { snapPoint } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
+import { LABEL_FONT } from "./font";
 import { useGroundPointer } from "./useGroundPointer";
 
 const Y = 0.03;
@@ -88,6 +89,7 @@ export function MeasureTool() {
           <Text
             position={[(from.x + end.x) / 2, Y + 0.25, (from.z + end.z) / 2]}
             rotation={[-Math.PI / 2, 0, 0]}
+            font={LABEL_FONT}
             fontSize={0.26}
             color="#fbbf24"
             anchorX="center"
