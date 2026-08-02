@@ -51,4 +51,14 @@ export { parseScene, serializeScene, type ParseResult } from "./serialize";
 
 export { sceneToSvg, type SvgOptions } from "./svg";
 
+export {
+  AUTOSAVE_KEY,
+  attachAutosave,
+  clearAutosave,
+  readAutosave,
+  writeAutosave,
+  type AutosaveOptions,
+  type SceneStorage,
+} from "./autosave";
+
 export { MIN_OPENING, clampOpening, sameOpening } from "./openings";

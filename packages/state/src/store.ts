@@ -77,6 +77,8 @@ export interface EditorState {
 
   applyWallSettings: (next: Partial<WallSettings>) => void;
   replaceScene: (next: Scene) => void;
+  /** Restores a scene without touching history, for autosave on startup. */
+  resetScene: (next: Scene) => void;
 
   /** Two-point ruler. Null entries mean that end is not placed yet. */
   measure: { from: Vec2 | null; to: Vec2 | null };
@@ -461,6 +463,22 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       if (!from || (from.x === drag.position.x && from.z === drag.position.z)) return;
       state.execute(movePlacement(drag.id, from, drag.position));
     },
+
+    resetScene: (next) =>
+      set({
+        scene: next,
+        past: [],
+        future: [],
+        draft: [],
+        cursor: null,
+        dragging: null,
+        placementDrag: null,
+        selectedId: null,
+        selectedOpening: null,
+        pendingOpening: null,
+        measure: { from: null, to: null },
+        mode: next.room.polygon.length >= 3 ? "edit" : "draw",
+      }),
 
     replaceScene: (next) => {
       const state = get();
