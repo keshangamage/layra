@@ -125,10 +125,7 @@ test("a vertex drag is one undo, not one per frame", async ({ page }) => {
 
 test("furniture can be dragged across the floor", async ({ page }) => {
   await drawRoom(page);
-  await page.getByRole("button", { name: /Sofa/ }).click();
-  await expect(page.locator("text=Add Sofa (3 seat)")).toBeVisible();
-
-  // The piece lands at the centre of the room's bounds.
+  // Place it at the centre of the room's bounds, then drag from there.
   const points = await polygon(page);
   const xs = points.map((p) => p.x);
   const zs = points.map((p) => p.z);
@@ -137,6 +134,22 @@ test("furniture can be dragged across the floor", async ({ page }) => {
     (Math.min(...xs) + Math.max(...xs)) / 2,
     (Math.min(...zs) + Math.max(...zs)) / 2,
   );
+  await page.getByRole("button", { name: /Sofa/ }).click();
+  for (let i = 0; i < 20; i++) {
+    await page.mouse.move(centre.x + (i % 2), centre.y);
+    const armed = await page.evaluate(
+      () =>
+        (window as unknown as {
+          __layraStore: { getState(): { furnitureGhost: unknown } };
+        }).__layraStore.getState().furnitureGhost !== null,
+    );
+    if (armed) break;
+    await page.waitForTimeout(50);
+  }
+  await page.mouse.click(centre.x, centre.y);
+  await expect(page.locator("text=Add Sofa (3 seat)")).toBeVisible();
+  await page.waitForTimeout(300);
+
   await drag(page, centre, { x: centre.x + 45, y: centre.y + 20 });
 
   const entries = await history(page);
@@ -175,7 +188,6 @@ test("measuring never touches history", async ({ page }) => {
 
 test("the canvas survives a full editing session", async ({ page }) => {
   await drawRoom(page);
-  await page.getByRole("button", { name: /Desk/ }).click();
   const corner = await cornerOnScreen(page, 3);
   await drag(page, corner, { x: corner.x - 40, y: corner.y + 15 });
   await page.keyboard.press("ControlOrMeta+z");

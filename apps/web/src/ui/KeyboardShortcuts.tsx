@@ -44,6 +44,11 @@ export function KeyboardShortcuts() {
       }
 
       const key = event.key.toLowerCase();
+      if (key === "d") {
+        event.preventDefault();
+        editor().duplicateSelected();
+        return;
+      }
       if (key === "z") {
         event.preventDefault();
         if (event.shiftKey) editor().redo();

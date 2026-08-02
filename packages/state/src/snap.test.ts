@@ -74,3 +74,13 @@ describe("snapFrom", () => {
     expect(snapped.x).toBeCloseTo(8);
   });
 });
+
+describe("float cleanliness", () => {
+  it("returns exact decimals rather than binary noise", () => {
+    // 12 * 0.1 is 1.2000000000000002 without the extra rounding.
+    expect(snapToGrid(1.23, 0.1)).toBe(1.2);
+    expect(snapToGrid(0.7, 0.1)).toBe(0.7);
+    expect(snapToGrid(2.85, 0.05)).toBe(2.85);
+    expect(snapPoint({ x: 1.23, z: 4.57 }, 0.1)).toEqual({ x: 1.2, z: 4.6 });
+  });
+});
