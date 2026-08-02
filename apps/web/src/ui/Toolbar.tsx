@@ -17,7 +17,7 @@ export function Toolbar() {
           ? `${draftCount} placed · keep clicking`
           : "Enter or click the first corner to close · Esc to cancel"
       : mode === "edit"
-        ? "Drag a corner handle to reshape the room"
+        ? "Drag a corner to reshape · double-click a wall to add one · Delete removes"
         : "Click two points to measure - Esc clears";
 
   return (

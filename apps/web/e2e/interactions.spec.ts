@@ -201,3 +201,53 @@ test("the canvas survives a full editing session", async ({ page }) => {
   expect(lost).toBe(false);
   await expect(page.locator("text=3D view lost its graphics context")).toHaveCount(0);
 });
+
+test("adds a corner by double-clicking a wall", async ({ page }) => {
+  await drawRoom(page);
+  expect(await polygon(page)).toHaveLength(4);
+
+  // Midpoint of the first wall.
+  const points = await polygon(page);
+  const midpoint = await project(
+    page,
+    (points[0]!.x + points[1]!.x) / 2,
+    (points[0]!.z + points[1]!.z) / 2,
+  );
+  await page.mouse.dblclick(midpoint.x, midpoint.y);
+
+  await expect(page.locator("text=Add corner")).toBeVisible();
+  expect(await polygon(page)).toHaveLength(5);
+});
+
+test("removes a selected corner with Delete", async ({ page }) => {
+  await drawRoom(page);
+  const corner = await cornerOnScreen(page, 1);
+
+  // Pressing on a handle selects it.
+  await page.mouse.move(corner.x, corner.y);
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.waitForFunction(
+    () =>
+      (window as unknown as {
+        __layraStore: { getState(): { selectedVertex: number | null } };
+      }).__layraStore.getState().selectedVertex !== null,
+  );
+
+  await page.keyboard.press("Delete");
+  await expect(page.locator("text=Remove corner")).toBeVisible();
+  expect(await polygon(page)).toHaveLength(3);
+});
+
+test("a room never drops below three corners", async ({ page }) => {
+  await drawRoom(page);
+  for (const index of [1, 1]) {
+    const corner = await cornerOnScreen(page, index);
+    await page.mouse.move(corner.x, corner.y);
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.keyboard.press("Delete");
+    await page.waitForTimeout(200);
+  }
+  expect(await polygon(page)).toHaveLength(3);
+});

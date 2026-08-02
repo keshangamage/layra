@@ -32,6 +32,11 @@ export function KeyboardShortcuts() {
 
       if (!event.metaKey && !event.ctrlKey) {
         if (event.key === "Delete" || event.key === "Backspace") {
+          // A selected corner takes priority over selected furniture.
+          if (editor().deleteSelectedVertex()) {
+            event.preventDefault();
+            return;
+          }
           if (editor().selectedId === null) return;
           event.preventDefault();
           editor().deleteSelected();

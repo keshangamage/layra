@@ -42,6 +42,10 @@ function Room() {
           event.stopPropagation();
           editor().placeOpeningAt({ x: event.point.x, z: event.point.z });
         }}
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          editor().addVertexAt({ x: event.point.x, z: event.point.z });
+        }}
       />
     </>
   );
@@ -116,7 +120,10 @@ export default function Scene() {
       camera={{ position: [7, 6, 8], fov: 45, near: 0.1, far: 200 }}
       className="bg-zinc-900"
       // Fires only when a click hit no mesh, unlike a raw canvas pointerup.
-      onPointerMissed={() => editor().selectPlacement(null)}
+      onPointerMissed={() => {
+        editor().selectPlacement(null);
+        editor().selectVertex(null);
+      }}
     >
       <ambientLight intensity={0.6} />
       <directionalLight

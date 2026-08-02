@@ -13,12 +13,14 @@ import { findCatalogItem } from "./catalog";
 import {
   addOpening,
   addPlacement,
+  addVertex,
   closeRoom,
   loadScene,
   movePlacement,
   moveVertex,
   removeOpening,
   removePlacement,
+  removeVertex,
   rotatePlacement,
   setWallSettings,
   updateOpening,
@@ -70,6 +72,12 @@ export interface EditorState {
   setCursor: (point: Vec2 | null) => void;
   cancelDraft: () => void;
   closeDraft: () => boolean;
+
+  /** Corner selected for deletion, or null. */
+  selectedVertex: number | null;
+  selectVertex: (index: number | null) => void;
+  addVertexAt: (point: Vec2) => boolean;
+  deleteSelectedVertex: () => boolean;
 
   beginDrag: (index: number) => void;
   updateDrag: (position: Vec2) => void;
@@ -346,6 +354,49 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       return true;
     },
 
+    selectedVertex: null,
+
+    selectVertex: (selectedVertex) => set({ selectedVertex }),
+
+    addVertexAt: (point) => {
+      const state = get();
+      const { polygon, walls } = state.scene.room;
+      const station = nearestWallStation(polygon, point);
+      if (!station) return false;
+
+      const snapped = snapPoint(point, state.snap.grid);
+      // Refuse a corner on top of an existing one; it would make a zero-length
+      // wall, which offsetting cannot mitre.
+      const tooClose = Math.min(station.offset, station.wallLength - station.offset);
+      if (tooClose < state.snap.grid) return false;
+
+      state.execute(
+        addVertex(
+          station.index,
+          snapped,
+          station.offset,
+          polygon,
+          walls.map((wall) => wall.openings),
+        ),
+      );
+      return true;
+    },
+
+    deleteSelectedVertex: () => {
+      const state = get();
+      const index = state.selectedVertex;
+      const { polygon, walls } = state.scene.room;
+      if (index === null || index < 0 || index >= polygon.length) return false;
+      // A room needs three corners.
+      if (polygon.length <= 3) return false;
+
+      state.execute(
+        removeVertex(index, polygon, walls.map((wall) => wall.openings)),
+      );
+      set({ selectedVertex: null });
+      return true;
+    },
+
     beginDrag: (index) => {
       if (get().pendingFurniture) return;
       const position = get().scene.room.polygon[index];
@@ -555,6 +606,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         dragging: null,
         placementDrag: null,
         selectedId: null,
+        selectedVertex: null,
         pendingOpening: null,
         pendingFurniture: null,
         furnitureGhost: null,
