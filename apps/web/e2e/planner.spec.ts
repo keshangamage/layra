@@ -50,6 +50,53 @@ async function screenshotVariety(page: Page): Promise<number> {
 // Each test gets a fresh browser context, so localStorage starts empty.
 // Do not clear it via addInitScript: that also runs on reload, which would
 // wipe the autosave before the app could read it back.
+
+/** Screen position of the room's centre, via the test hook. */
+async function roomCentre(page: Page): Promise<{ x: number; y: number }> {
+  const points = await page.evaluate(
+    () =>
+      (window as unknown as {
+        __layraStore: { getState(): { scene: { room: { polygon: { x: number; z: number }[] } } } };
+      }).__layraStore.getState().scene.room.polygon,
+  );
+  const xs = points.map((p) => p.x);
+  const zs = points.map((p) => p.z);
+  return page.evaluate(
+    ([x, z]) =>
+      (window as unknown as {
+        __layraProject: (x: number, z: number) => { x: number; y: number };
+      }).__layraProject(x as number, z as number),
+    [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...zs) + Math.max(...zs)) / 2],
+  );
+}
+
+
+/**
+ * Arms a catalog item and clicks to place it.
+ *
+ * Waits for the ghost rather than the sidebar hint: the hint lives in the DOM
+ * tree while the placer's listeners attach inside R3F's separate reconciler,
+ * so the two do not update in step.
+ */
+async function placeItem(page: Page, name: RegExp, target: { x: number; y: number }) {
+  await page.getByRole("button", { name }).click();
+  // Nudge until the ghost appears: the placer's listeners attach inside R3F's
+  // own reconciler, so a single move can land before they exist and nothing
+  // would re-trigger it.
+  for (let i = 0; i < 20; i++) {
+    await page.mouse.move(target.x + (i % 2), target.y);
+    const armed = await page.evaluate(
+      () =>
+        (window as unknown as {
+          __layraStore: { getState(): { furnitureGhost: unknown } };
+        }).__layraStore.getState().furnitureGhost !== null,
+    );
+    if (armed) break;
+    await page.waitForTimeout(50);
+  }
+  await page.mouse.click(target.x, target.y);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
@@ -95,9 +142,10 @@ test("undoes and redoes with the keyboard", async ({ page }) => {
   await expect(page.locator("text=Floor area")).toBeVisible();
 });
 
-test("places furniture and records it", async ({ page }) => {
+test("places furniture where you click", async ({ page }) => {
   await drawRoom(page);
-  await page.getByRole("button", { name: /Sofa/ }).click();
+
+  await placeItem(page, /Sofa/, await roomCentre(page));
   await expect(page.locator("text=Add Sofa (3 seat)")).toBeVisible();
 });
 

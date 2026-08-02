@@ -14,6 +14,7 @@ import { DrawController } from "./DrawController";
 import { DraftPolyline } from "./DraftPolyline";
 import { VertexHandles } from "./VertexHandles";
 import { Furniture } from "./Furniture";
+import { FurniturePlacer } from "./FurniturePlacer";
 import { Dimensions } from "./Dimensions";
 import { MeasureTool } from "./MeasureTool";
 
@@ -80,6 +81,13 @@ export default function Scene() {
       onCreated={({ gl, camera }) => {
         const canvas = gl.domElement;
         if (process.env.NEXT_PUBLIC_E2E === "1") {
+          (window as unknown as Record<string, unknown>).__layraInfo = () => ({
+            geometries: gl.info.memory.geometries,
+            textures: gl.info.memory.textures,
+            programs: gl.info.programs?.length ?? 0,
+            frames: gl.info.render.frame,
+            calls: gl.info.render.calls,
+          });
           (window as unknown as Record<string, unknown>).__layraProject = (
             x: number,
             z: number,
@@ -126,6 +134,7 @@ export default function Scene() {
 
       <Room />
       <Furniture />
+      <FurniturePlacer />
       <DraftPolyline />
       <VertexHandles />
       {/*

@@ -100,6 +100,15 @@ export interface EditorState {
   selectOpening: (ref: { wallIndex: number; id: string } | null) => void;
   updateSelectedOpening: (patch: Partial<OpeningShape>) => void;
 
+  /** Armed catalog item; the next click in the room places it. */
+  pendingFurniture: string | null;
+  /** Ground point the ghost preview follows while armed. */
+  furnitureGhost: Vec2 | null;
+  armFurniture: (catalogItemId: string | null) => void;
+  setFurnitureGhost: (point: Vec2 | null) => void;
+  placeFurnitureAt: (point: Vec2) => boolean;
+  duplicateSelected: () => void;
+
   /** Currently selected furniture, or null. */
   selectedId: string | null;
   selectPlacement: (id: string | null) => void;
@@ -255,7 +264,8 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     pendingOpening: null,
 
-    armOpening: (pendingOpening) => set({ pendingOpening }),
+    armOpening: (pendingOpening) =>
+      set({ pendingOpening, pendingFurniture: null, furnitureGhost: null }),
 
     placeOpeningAt: (point) => {
       const state = get();
@@ -337,6 +347,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     },
 
     beginDrag: (index) => {
+      if (get().pendingFurniture) return;
       const position = get().scene.room.polygon[index];
       if (!position) return;
       set({ dragging: { index, position } });
@@ -378,6 +389,59 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     },
 
     selectedId: null,
+    pendingFurniture: null,
+    furnitureGhost: null,
+
+    // Arming one tool disarms the other, so a click is never ambiguous.
+    armFurniture: (pendingFurniture) =>
+      set({ pendingFurniture, pendingOpening: null, furnitureGhost: null }),
+
+    setFurnitureGhost: (furnitureGhost) => set({ furnitureGhost }),
+
+    placeFurnitureAt: (point) => {
+      const state = get();
+      const catalogItemId = state.pendingFurniture;
+      const item = catalogItemId ? findCatalogItem(catalogItemId) : undefined;
+      if (!catalogItemId || !item) return false;
+
+      const snapped = snapPoint(point, state.snap.grid);
+      const placement: Placement = {
+        id: crypto.randomUUID(),
+        catalogItemId,
+        position: { x: snapped.x, y: 0, z: snapped.z },
+        rotationY: 0,
+        locked: false,
+      };
+      state.execute(addPlacement(placement, item.name));
+      set({
+        pendingFurniture: null,
+        furnitureGhost: null,
+        selectedId: placement.id,
+      });
+      return true;
+    },
+
+    duplicateSelected: () => {
+      const state = get();
+      const source = state.scene.placements.find((p) => p.id === state.selectedId);
+      if (!source) return;
+      const item = findCatalogItem(source.catalogItemId);
+      if (!item) return;
+
+      // Offset by half a footprint so the copy is visible, not hidden underneath.
+      const copy: Placement = {
+        ...source,
+        id: crypto.randomUUID(),
+        locked: false,
+        position: {
+          x: source.position.x + item.footprint.w / 2 + 0.2,
+          y: 0,
+          z: source.position.z,
+        },
+      };
+      state.execute(addPlacement(copy, item.name));
+      set({ selectedId: copy.id });
+    },
 
     selectPlacement: (selectedId) => set({ selectedId }),
 
@@ -422,6 +486,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     placementDrag: null,
 
     beginPlacementDrag: (id, pointer) => {
+      if (get().pendingFurniture) return;
       const placement = get().scene.placements.find((p) => p.id === id);
       if (!placement || placement.locked) return;
       // Grab offset, so the piece doesn't jump its centre to the pointer.
@@ -491,6 +556,8 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         placementDrag: null,
         selectedId: null,
         pendingOpening: null,
+        pendingFurniture: null,
+        furnitureGhost: null,
         selectedOpening: null,
         mode: next.room.polygon.length >= 3 ? "edit" : "draw",
       });

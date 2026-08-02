@@ -1,7 +1,10 @@
 import type { Vec2 } from "@layra/types";
 
 export function snapToGrid(value: number, step: number): number {
-  return step <= 0 ? value : Math.round(value / step) * step;
+  if (step <= 0) return value;
+  // Round the product too: 12 * 0.1 is 1.2000000000000002 in binary floating
+  // point, and that noise would otherwise land in every saved scene.
+  return Math.round(Math.round(value / step) * step * 1e6) / 1e6;
 }
 
 export function snapPoint(point: Vec2, step: number): Vec2 {

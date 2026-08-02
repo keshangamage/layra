@@ -320,3 +320,132 @@ describe("placements survive save and load", () => {
     expect(store.getState().selectedId).toBeNull();
   });
 });
+
+describe("click to place", () => {
+  it("does nothing until an item is armed", () => {
+    const s = storeWithRoom();
+    expect(s.getState().placeFurnitureAt({ x: 1, z: 1 })).toBe(false);
+    expect(s.getState().scene.placements).toHaveLength(0);
+  });
+
+  it("places where the click landed, not at the room centre", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    expect(s.getState().placeFurnitureAt({ x: 1.23, z: 0.57 })).toBe(true);
+
+    // Snapped to the 0.1m grid.
+    expect(s.getState().scene.placements[0]?.position).toEqual({
+      x: 1.2,
+      y: 0,
+      z: 0.6,
+    });
+  });
+
+  it("selects the new piece and disarms", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1, z: 1 });
+    expect(s.getState().selectedId).toBe(s.getState().scene.placements[0]?.id);
+    expect(s.getState().pendingFurniture).toBeNull();
+    expect(s.getState().furnitureGhost).toBeNull();
+  });
+
+  it("stacks nothing: two pieces land where each was clicked", () => {
+    const s = storeWithRoom();
+    for (const [id, x] of [["desk", 1], ["dining-chair", 3]] as const) {
+      s.getState().armFurniture(id);
+      s.getState().placeFurnitureAt({ x, z: 1 });
+    }
+    const xs = s.getState().scene.placements.map((p) => p.position.x);
+    expect(xs).toEqual([1, 3]);
+  });
+
+  it("is undoable", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1, z: 1 });
+    s.getState().undo();
+    expect(s.getState().scene.placements).toHaveLength(0);
+  });
+
+  it("ignores an unknown catalog id", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("nope");
+    expect(s.getState().placeFurnitureAt({ x: 1, z: 1 })).toBe(false);
+  });
+
+  it("arming furniture disarms an opening, and the reverse", () => {
+    const s = storeWithRoom();
+    s.getState().armOpening("door");
+    s.getState().armFurniture("desk");
+    expect(s.getState().pendingOpening).toBeNull();
+
+    s.getState().armOpening("window");
+    expect(s.getState().pendingFurniture).toBeNull();
+  });
+
+  it("blocks vertex and furniture drags while armed", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().beginDrag(1);
+    expect(s.getState().dragging).toBeNull();
+  });
+});
+
+describe("duplicate", () => {
+  it("copies the selection beside the original", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1, z: 1 });
+    s.getState().duplicateSelected();
+
+    const [original, copy] = s.getState().scene.placements;
+    expect(s.getState().scene.placements).toHaveLength(2);
+    expect(copy?.catalogItemId).toBe("desk");
+    expect(copy?.id).not.toBe(original?.id);
+    // Offset so it is not hidden underneath.
+    expect(copy!.position.x).toBeGreaterThan(original!.position.x);
+    expect(copy!.position.z).toBeCloseTo(original!.position.z);
+  });
+
+  it("keeps rotation", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1, z: 1 });
+    s.getState().rotateSelected(Math.PI / 2);
+    s.getState().duplicateSelected();
+    expect(s.getState().scene.placements[1]?.rotationY).toBeCloseTo(Math.PI / 2);
+  });
+
+  it("selects the copy so repeats fan out", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("dining-chair");
+    s.getState().placeFurnitureAt({ x: 1, z: 1 });
+    s.getState().duplicateSelected();
+    s.getState().duplicateSelected();
+
+    const xs = s.getState().scene.placements.map((p) => p.position.x);
+    expect(xs[2]).toBeGreaterThan(xs[1]!);
+  });
+
+  it("never copies the locked flag", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1, z: 1 });
+    s.setState((state) => ({
+      scene: {
+        ...state.scene,
+        placements: state.scene.placements.map((p) => ({ ...p, locked: true })),
+      },
+    }));
+    s.getState().duplicateSelected();
+    expect(s.getState().scene.placements[1]?.locked).toBe(false);
+  });
+
+  it("does nothing without a selection", () => {
+    const s = storeWithRoom();
+    s.getState().selectPlacement(null);
+    s.getState().duplicateSelected();
+    expect(s.getState().scene.placements).toHaveLength(0);
+  });
+});

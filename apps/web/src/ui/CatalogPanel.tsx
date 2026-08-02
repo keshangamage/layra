@@ -9,6 +9,8 @@ export function CatalogPanel() {
   const room = useEditor((state) => state.scene.room);
   const placements = useEditor((state) => state.scene.placements);
 
+  const pending = useEditor((state) => state.pendingFurniture);
+
   const report = useMemo(
     () => findCollisions(room, placements),
     [room, placements],
@@ -36,8 +38,14 @@ export function CatalogPanel() {
             <li key={item.id}>
               <button
                 type="button"
-                onClick={() => editor().placeFurniture(item.id)}
-                className="flex w-full items-baseline justify-between rounded px-2 py-1 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+                onClick={() =>
+                  editor().armFurniture(pending === item.id ? null : item.id)
+                }
+                className={`flex w-full items-baseline justify-between rounded px-2 py-1 text-left text-xs transition-colors ${
+                  pending === item.id
+                    ? "bg-sky-600 text-white"
+                    : "text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                }`}
               >
                 <span>{item.name}</span>
                 <span className="font-mono text-[10px] text-zinc-500">
@@ -47,6 +55,14 @@ export function CatalogPanel() {
             </li>
           ))}
         </ul>
+      )}
+
+      {hasRoom && (
+        <p className="mt-2 text-[11px] text-zinc-600">
+          {pending
+            ? "Click in the room to place it - Esc to cancel."
+            : "Pick an item, then click where it goes."}
+        </p>
       )}
     </section>
   );
