@@ -12,6 +12,7 @@ interface WallsProps {
   thickness: number;
   openings: readonly (readonly WallOpening[])[];
   onPointerDown?: (event: ThreeEvent<PointerEvent>) => void;
+  onDoubleClick?: (event: ThreeEvent<MouseEvent>) => void;
 }
 
 export function Walls({
@@ -20,6 +21,7 @@ export function Walls({
   thickness,
   openings,
   onPointerDown,
+  onDoubleClick,
 }: WallsProps) {
   const data = useMemo(
     () => extrudeWalls(polygon, { height, thickness, openings }),
@@ -28,7 +30,9 @@ export function Walls({
   const geometry = useMeshGeometry(data);
 
   return (
-    <mesh geometry={geometry} castShadow receiveShadow onPointerDown={onPointerDown}>
+    <mesh geometry={geometry} castShadow receiveShadow onPointerDown={onPointerDown}
+      onDoubleClick={onDoubleClick}
+    >
       <meshStandardMaterial color="#e7e5e4" roughness={0.9} metalness={0} />
     </mesh>
   );

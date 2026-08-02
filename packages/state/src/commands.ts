@@ -129,6 +129,114 @@ export function moveVertex(
   };
 }
 
+/**
+ * Splits wall `index` at `splitAt` metres along it.
+ *
+ * Openings move to whichever half contains them. One straddling the split is
+ * dropped rather than cut in two - half a door is not a door.
+ */
+export function addVertex(
+  index: number,
+  point: Vec2,
+  splitAt: number,
+  fromPolygon: readonly Vec2[],
+  fromOpenings: readonly (readonly Opening[])[],
+): Command {
+  const nextPolygon = [...fromPolygon];
+  nextPolygon.splice(index + 1, 0, point);
+
+  const carried = fromOpenings[index] ?? [];
+  const nextOpenings: Opening[][] = [];
+  for (let w = 0; w < fromPolygon.length; w++) {
+    if (w !== index) {
+      nextOpenings.push([...(fromOpenings[w] ?? [])]);
+      continue;
+    }
+    nextOpenings.push(carried.filter((o) => o.offset + o.width <= splitAt));
+    nextOpenings.push(
+      carried
+        .filter((o) => o.offset >= splitAt)
+        .map((o) => ({ ...o, offset: o.offset - splitAt })),
+    );
+  }
+
+  return {
+    label: "Add corner",
+    do: (scene) =>
+      withRoom(
+        scene,
+        roomWithOpenings(
+          nextPolygon,
+          wallSettingsOf(scene, { height: 2.5, thickness: 0.2 }),
+          scene.room.floorMaterial,
+          nextOpenings,
+          true,
+        ),
+      ),
+    undo: (scene) =>
+      withRoom(
+        scene,
+        roomWithOpenings(
+          fromPolygon,
+          wallSettingsOf(scene, { height: 2.5, thickness: 0.2 }),
+          scene.room.floorMaterial,
+          fromOpenings,
+          false,
+        ),
+      ),
+  };
+}
+
+/**
+ * Removes a corner, merging the two walls that met there.
+ *
+ * Their openings are dropped: both sat on geometry that no longer exists, and
+ * re-projecting them onto a wall at a different angle would move them somewhere
+ * the user never chose. Undo restores them exactly.
+ */
+export function removeVertex(
+  index: number,
+  fromPolygon: readonly Vec2[],
+  fromOpenings: readonly (readonly Opening[])[],
+): Command {
+  const n = fromPolygon.length;
+  const nextPolygon = fromPolygon.filter((_, i) => i !== index);
+
+  const previous = (index - 1 + n) % n;
+  const nextOpenings: Opening[][] = [];
+  for (let w = 0; w < n; w++) {
+    if (w === index) continue;
+    // The merged wall keeps no openings, and is emitted once in the pair's place.
+    nextOpenings.push(w === previous ? [] : [...(fromOpenings[w] ?? [])]);
+  }
+
+  return {
+    label: "Remove corner",
+    do: (scene) =>
+      withRoom(
+        scene,
+        roomWithOpenings(
+          nextPolygon,
+          wallSettingsOf(scene, { height: 2.5, thickness: 0.2 }),
+          scene.room.floorMaterial,
+          nextOpenings,
+          true,
+        ),
+      ),
+    undo: (scene) =>
+      withRoom(
+        scene,
+        roomWithOpenings(
+          fromPolygon,
+          wallSettingsOf(scene, { height: 2.5, thickness: 0.2 }),
+          scene.room.floorMaterial,
+          fromOpenings,
+          false,
+        ),
+      ),
+  };
+}
+
 export function setWallSettings(prev: WallSettings, next: WallSettings): Command {
   const apply = (scene: Scene, settings: WallSettings): Scene =>
     withRoom(scene, {

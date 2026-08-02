@@ -14,6 +14,7 @@ export function VertexHandles() {
   const mode = useEditor((state) => state.mode);
   const polygon = useEditor(useShallow(livePolygon));
   const draggingIndex = useEditor((state) => state.dragging?.index ?? null);
+  const selected = useEditor((state) => state.selectedVertex);
   const groundAt = useGroundPointer();
   const [hovered, setHovered] = useState<number | null>(null);
 
@@ -48,11 +49,12 @@ export function VertexHandles() {
     <group>
       {polygon.map((point, i) => {
         const active = draggingIndex === i || hovered === i;
+        const isSelected = selected === i;
         return (
           <mesh
             key={i}
             position={[point.x, Y, point.z]}
-            scale={active ? 1.35 : 1}
+            scale={active || isSelected ? 1.35 : 1}
             onPointerOver={(event) => {
               event.stopPropagation();
               setHovered(i);
@@ -61,11 +63,14 @@ export function VertexHandles() {
             onPointerDown={(event) => {
               // Stop OrbitControls from also treating this as an orbit drag.
               event.stopPropagation();
+              editor().selectVertex(i);
               editor().beginDrag(i);
             }}
           >
             <sphereGeometry args={[RADIUS, 20, 14]} />
-            <meshBasicMaterial color={active ? "#4ade80" : "#38bdf8"} />
+            <meshBasicMaterial
+              color={isSelected ? "#fbbf24" : active ? "#4ade80" : "#38bdf8"}
+            />
           </mesh>
         );
       })}
