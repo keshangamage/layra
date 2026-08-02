@@ -16,13 +16,13 @@ import {
   addVertex,
   closeRoom,
   loadScene,
-  movePlacement,
   moveVertex,
   removeOpening,
   removePlacement,
   removeVertex,
   rotatePlacement,
   setWallSettings,
+  transformPlacement,
   updateOpening,
   wallSettingsOf,
   type Command,
@@ -30,6 +30,7 @@ import {
 } from "./commands";
 import { snapPoint } from "./snap";
 import { clampOpening, sameOpening } from "./openings";
+import { mountToWall } from "./mounting";
 
 export type Mode = "draw" | "edit" | "measure";
 
@@ -125,7 +126,13 @@ export interface EditorState {
   rotateSelected: (radians: number) => void;
 
   /** Transient, like `dragging`, so history gets one entry per gesture. */
-  placementDrag: { id: string; offset: Vec2; position: Vec3 } | null;
+  placementDrag: {
+    id: string;
+    offset: Vec2;
+    position: Vec3;
+    /** Set while sliding a wall-mounted piece onto a differently angled wall. */
+    rotationY?: number;
+  } | null;
   beginPlacementDrag: (id: string, pointer: Vec2) => void;
   updatePlacementDrag: (pointer: Vec2) => void;
   endPlacementDrag: () => void;
@@ -164,7 +171,9 @@ export function livePlacements(state: EditorState): Placement[] {
   const drag = state.placementDrag;
   if (!drag) return state.scene.placements;
   return state.scene.placements.map((p) =>
-    p.id === drag.id ? { ...p, position: drag.position } : p,
+    p.id === drag.id
+      ? { ...p, position: drag.position, rotationY: drag.rotationY ?? p.rotationY }
+      : p,
   );
 }
 
@@ -456,11 +465,14 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       if (!catalogItemId || !item) return false;
 
       const snapped = snapPoint(point, state.snap.grid);
+      const mounted = item.wallMounted
+        ? mountToWall(state.scene.room, snapped, item)
+        : null;
       const placement: Placement = {
         id: crypto.randomUUID(),
         catalogItemId,
-        position: { x: snapped.x, y: 0, z: snapped.z },
-        rotationY: 0,
+        position: mounted?.position ?? { x: snapped.x, y: 0, z: snapped.z },
+        rotationY: mounted?.rotationY ?? 0,
         locked: false,
       };
       state.execute(addPlacement(placement, item.name));
@@ -561,6 +573,23 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
           { x: pointer.x + drag.offset.x, z: pointer.z + drag.offset.z },
           state.snap.grid,
         );
+
+        const placement = state.scene.placements.find((p) => p.id === drag.id);
+        const item = placement ? findCatalogItem(placement.catalogItemId) : undefined;
+        if (item?.wallMounted) {
+          // Wall pieces stay on a wall; dragging slides them along it.
+          const mounted = mountToWall(state.scene.room, snapped, item);
+          if (mounted) {
+            return {
+              placementDrag: {
+                ...drag,
+                position: mounted.position,
+                rotationY: mounted.rotationY,
+              },
+            };
+          }
+        }
+
         return {
           placementDrag: {
             ...drag,
@@ -573,11 +602,29 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const state = get();
       const drag = state.placementDrag;
       if (!drag) return;
-      const from = state.scene.placements.find((p) => p.id === drag.id)?.position;
+      const placement = state.scene.placements.find((p) => p.id === drag.id);
       set({ placementDrag: null });
+      if (!placement) return;
+
+      const to = {
+        position: drag.position,
+        rotationY: drag.rotationY ?? placement.rotationY,
+      };
       // One entry per gesture, and nothing at all if it didn't move.
-      if (!from || (from.x === drag.position.x && from.z === drag.position.z)) return;
-      state.execute(movePlacement(drag.id, from, drag.position));
+      if (
+        placement.position.x === to.position.x &&
+        placement.position.z === to.position.z &&
+        placement.rotationY === to.rotationY
+      ) {
+        return;
+      }
+      state.execute(
+        transformPlacement(
+          drag.id,
+          { position: placement.position, rotationY: placement.rotationY },
+          to,
+        ),
+      );
     },
 
     resetScene: (next) =>

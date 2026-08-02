@@ -295,6 +295,30 @@ export function movePlacement(id: string, from: Vec3, to: Vec3): Command {
   };
 }
 
+export interface Transform {
+  position: Vec3;
+  rotationY: number;
+}
+
+/** Moves and rotates together, so sliding a wall piece is one history entry. */
+export function transformPlacement(
+  id: string,
+  from: Transform,
+  to: Transform,
+): Command {
+  const apply = (scene: Scene, next: Transform): Scene => ({
+    ...scene,
+    placements: scene.placements.map((p) =>
+      p.id === id ? { ...p, position: next.position, rotationY: next.rotationY } : p,
+    ),
+  });
+  return {
+    label: "Move furniture",
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
 export function rotatePlacement(id: string, from: number, to: number): Command {
   const apply = (scene: Scene, rotationY: number): Scene => ({
     ...scene,

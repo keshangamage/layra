@@ -3,7 +3,13 @@
 import { useEffect, useMemo } from "react";
 import { useThree } from "@react-three/fiber";
 import type { Placement } from "@layra/types";
-import { findCatalogItem, findCollisions, isBlocked, snapPoint } from "@layra/state";
+import {
+  findCatalogItem,
+  findCollisions,
+  isBlocked,
+  mountToWall,
+  snapPoint,
+} from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 import { useGroundPointer } from "./useGroundPointer";
 
@@ -65,23 +71,33 @@ export function FurniturePlacer() {
 
   const item = pending ? findCatalogItem(pending) : undefined;
 
+  // The ghost shows exactly where the piece will land, wall snap included.
+  const preview = useMemo(() => {
+    if (!item || !ghost) return null;
+    if (item.wallMounted) return mountToWall(room, ghost, item);
+    return { position: { x: ghost.x, y: 0, z: ghost.z }, rotationY: 0 };
+  }, [item, ghost, room]);
+
   // Test the ghost against the real scene so it warns before you commit.
   const blocked = useMemo(() => {
-    if (!item || !ghost) return false;
+    if (!item || !preview) return false;
     const candidate: Placement = {
       id: GHOST_ID,
       catalogItemId: item.id,
-      position: { x: ghost.x, y: 0, z: ghost.z },
-      rotationY: 0,
+      position: preview.position,
+      rotationY: preview.rotationY,
       locked: false,
     };
     return isBlocked(findCollisions(room, [...placements, candidate]), GHOST_ID);
-  }, [item, ghost, room, placements]);
+  }, [item, preview, room, placements]);
 
-  if (!item || !ghost) return null;
+  if (!item || !preview) return null;
 
   return (
-    <mesh position={[ghost.x, item.height / 2, ghost.z]}>
+    <mesh
+      position={[preview.position.x, preview.position.y + item.height / 2, preview.position.z]}
+      rotation={[0, preview.rotationY, 0]}
+    >
       <boxGeometry args={[item.footprint.w, item.height, item.footprint.d]} />
       <meshStandardMaterial
         color={blocked ? "#dc2626" : "#38bdf8"}

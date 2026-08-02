@@ -82,6 +82,7 @@ export const CATALOG: CatalogItem[] = [
     footprint: { w: 0.9, d: 0.25 },
     height: 0.3,
     wallMounted: true,
+    mountHeight: 1.4,
     clearance: { front: 0.3, sides: 0, back: 0 },
   },
 ];

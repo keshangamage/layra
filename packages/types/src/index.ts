@@ -61,6 +61,8 @@ export interface CatalogItem {
   footprint: Footprint;
   height: number;
   wallMounted: boolean;
+  /** Height of the item's underside when wall-mounted. Ignored otherwise. */
+  mountHeight?: number;
   clearance: Clearance;
 }
 

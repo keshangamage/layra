@@ -51,8 +51,13 @@ function Piece({ placement, selected, blocked, crowded, onGrab, onHover }: Piece
 
   return (
     <mesh
-      // Origin is the centre of the footprint at floor level, so lift by half.
-      position={[placement.position.x, item.height / 2, placement.position.z]}
+      // Origin is the centre of the footprint at its base, so lift by half.
+      // Wall-mounted pieces carry a non-zero y and hang there.
+      position={[
+        placement.position.x,
+        placement.position.y + item.height / 2,
+        placement.position.z,
+      ]}
       rotation={[0, placement.rotationY, 0]}
       castShadow
       receiveShadow

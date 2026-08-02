@@ -15,6 +15,7 @@ export {
   roomFromPolygon,
   rotatePlacement,
   setWallSettings,
+  transformPlacement,
   updateOpening,
   wallSettingsOf,
   type Command,
@@ -22,6 +23,8 @@ export {
 } from "./commands";
 
 export { CATALOG, findCatalogItem } from "./catalog";
+
+export { DEFAULT_MOUNT_HEIGHT, mountToWall, type Mounted } from "./mounting";
 
 export {
   clearanceRect,
