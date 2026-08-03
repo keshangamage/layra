@@ -40,6 +40,20 @@ export function KeyboardShortcuts() {
           if (editor().selectedId === null) return;
           event.preventDefault();
           editor().deleteSelected();
+        } else if (event.key.startsWith("Arrow")) {
+          if (editor().selectedId === null) return;
+          const step = event.shiftKey ? 10 : 1;
+          const moves: Record<string, [number, number]> = {
+            ArrowLeft: [-1, 0],
+            ArrowRight: [1, 0],
+            // Up on screen is away from the camera, which is -z on the ground.
+            ArrowUp: [0, -1],
+            ArrowDown: [0, 1],
+          };
+          const move = moves[event.key];
+          if (!move) return;
+          event.preventDefault();
+          editor().nudgeSelected(move[0], move[1], step);
         } else if (event.key.toLowerCase() === "r" && editor().selectedId !== null) {
           event.preventDefault();
           // Shift reverses; 15 degrees matches the drawing angle snap.

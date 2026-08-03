@@ -4,6 +4,7 @@ import {
   facePanels,
   nearestWallStation,
   openingFootprint,
+  openingTransform,
   resolveOpenings,
   type WallOpening,
 } from "./openings";
@@ -290,5 +291,47 @@ describe("openingFootprint", () => {
 
   it("returns null for a degenerate wall", () => {
     expect(openingFootprint(start, start, { offset: 0, width: 1 }, 0.2)).toBeNull();
+  });
+});
+
+describe("openingTransform", () => {
+  const start: Vec2 = { x: 0, z: 0 };
+  const end: Vec2 = { x: 4, z: 0 };
+  const window: WallOpening = { offset: 1, width: 1.2, height: 1.1, sillHeight: 0.9 };
+
+  it("centres the panel in the hole", () => {
+    const t = openingTransform(start, end, window)!;
+    expect(t.position.x).toBeCloseTo(1.6);
+    expect(t.position.z).toBeCloseTo(0);
+  });
+
+  it("puts it at mid height, not on the floor", () => {
+    const t = openingTransform(start, end, window)!;
+    expect(t.position.y).toBeCloseTo(0.9 + 0.55);
+  });
+
+  it("carries the opening's size", () => {
+    const t = openingTransform(start, end, window)!;
+    expect(t.width).toBeCloseTo(1.2);
+    expect(t.height).toBeCloseTo(1.1);
+  });
+
+  it("lies flat in the wall it belongs to", () => {
+    // A panel's face normal is its local +Z; rotated, it must point across
+    // the wall rather than along it.
+    const t = openingTransform(start, end, window)!;
+    const normal = { x: Math.sin(t.rotationY), z: Math.cos(t.rotationY) };
+    const along = { x: 1, z: 0 };
+    expect(normal.x * along.x + normal.z * along.z).toBeCloseTo(0);
+  });
+
+  it("follows a wall running the other way", () => {
+    const t = openingTransform({ x: 4, z: 3 }, { x: 0, z: 3 }, window)!;
+    expect(t.position.x).toBeCloseTo(4 - 1.6);
+    expect(t.position.z).toBeCloseTo(3);
+  });
+
+  it("returns null for a degenerate wall", () => {
+    expect(openingTransform(start, start, window)).toBeNull();
   });
 });

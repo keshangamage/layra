@@ -293,3 +293,55 @@ test("fit frames a room drawn off to one side", async ({ page }) => {
     expect(screen.y).toBeLessThanOrEqual(box.y + box.height + 1);
   }
 });
+
+test("arrow keys nudge the selection by the grid step", async ({ page }) => {
+  await drawRoom(page);
+
+  const centre = await project(page, 0, 0);
+  await page.getByRole("button", { name: /Desk/ }).click();
+  for (let i = 0; i < 20; i++) {
+    await page.mouse.move(centre.x + (i % 2), centre.y);
+    const armed = await page.evaluate(
+      () =>
+        (window as unknown as {
+          __layraStore: { getState(): { furnitureGhost: unknown } };
+        }).__layraStore.getState().furnitureGhost !== null,
+    );
+    if (armed) break;
+    await page.waitForTimeout(50);
+  }
+  await page.mouse.click(centre.x, centre.y);
+  await expect(page.locator("text=Add Desk")).toBeVisible();
+
+  const xOf = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as {
+          __layraStore: { getState(): { scene: { placements: { position: { x: number } }[] } } };
+        }).__layraStore.getState().scene.placements[0]!.position.x,
+    );
+
+  const before = await xOf();
+  await page.keyboard.press("ArrowRight");
+  expect(await xOf()).toBeCloseTo(before + 0.1, 5);
+
+  await page.keyboard.press("Shift+ArrowRight");
+  expect(await xOf()).toBeCloseTo(before + 1.1, 5);
+
+  // The whole run collapses into a single undo.
+  await page.keyboard.press("ControlOrMeta+z");
+  expect(await xOf()).toBeCloseTo(before, 5);
+});
+
+test("changing the grid changes how far a nudge moves", async ({ page }) => {
+  await drawRoom(page);
+  await page.getByRole("button", { name: "50cm" }).click();
+
+  const value = await page.evaluate(
+    () =>
+      (window as unknown as {
+        __layraStore: { getState(): { snap: { grid: number } } };
+      }).__layraStore.getState().snap.grid,
+  );
+  expect(value).toBe(0.5);
+});

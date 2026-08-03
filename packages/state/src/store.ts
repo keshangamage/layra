@@ -21,6 +21,7 @@ import {
   removePlacement,
   removeVertex,
   rotatePlacement,
+  setFloorMaterial,
   setPlacementLock,
   setPlacementRotation,
   setWallSettings,
@@ -30,7 +31,7 @@ import {
   type Command,
   type WallSettings,
 } from "./commands";
-import { snapPoint } from "./snap";
+import { snapPoint, snapToGrid } from "./snap";
 import { clampOpening, sameOpening } from "./openings";
 import { mountToWall, snapFloorToWall } from "./mounting";
 
@@ -73,6 +74,11 @@ export interface EditorState {
   /** Applied to new rooms; existing rooms carry their own per-wall values. */
   wallDefaults: WallSettings;
   snap: SnapSettings;
+  /** Plain UI preference, so it stays out of history. */
+  setSnap: (next: Partial<SnapSettings>) => void;
+
+  /** Moves the selected piece by whole grid steps. */
+  nudgeSelected: (dx: number, dz: number, multiplier?: number) => void;
 
   execute: (command: Command) => void;
   undo: () => void;
@@ -95,6 +101,9 @@ export interface EditorState {
   endDrag: () => void;
 
   applyWallSettings: (next: Partial<WallSettings>) => void;
+  applyFloorMaterial: (id: string) => void;
+  /** Clears to an empty scene. Undoable, so it needs no confirmation. */
+  newScene: () => void;
   replaceScene: (next: Scene) => void;
   /** Restores a scene without touching history, for autosave on startup. */
   resetScene: (next: Scene) => void;
@@ -118,6 +127,12 @@ export interface EditorState {
   armOpening: (type: OpeningType | null) => void;
   placeOpeningAt: (point: Vec2) => boolean;
   deleteOpening: (wallIndex: number, openingId: string) => void;
+
+  /** Transient, like the other drags, so one gesture is one history entry. */
+  openingDrag: { wallIndex: number; id: string; offset: number; grab: number } | null;
+  beginOpeningDrag: (wallIndex: number, id: string, pointer: Vec2) => void;
+  updateOpeningDrag: (pointer: Vec2) => void;
+  endOpeningDrag: () => void;
 
   selectedOpening: { wallIndex: number; id: string } | null;
   selectOpening: (ref: { wallIndex: number; id: string } | null) => void;
@@ -218,6 +233,35 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     dragging: null,
     wallDefaults: DEFAULT_WALLS,
     snap: DEFAULT_SNAP,
+
+    setSnap: (next) => set((state) => ({ snap: { ...state.snap, ...next } })),
+
+    nudgeSelected: (dx, dz, multiplier = 1) => {
+      const state = get();
+      const placement = state.scene.placements.find((p) => p.id === state.selectedId);
+      if (!placement || placement.locked) return;
+
+      const step = state.snap.grid * multiplier;
+      const to = {
+        position: {
+          x: snapToGrid(placement.position.x + dx * step, state.snap.grid),
+          y: placement.position.y,
+          z: snapToGrid(placement.position.z + dz * step, state.snap.grid),
+        },
+        rotationY: placement.rotationY,
+      };
+
+      state.execute({
+        ...transformPlacement(
+          placement.id,
+          { position: placement.position, rotationY: placement.rotationY },
+          to,
+        ),
+        label: "Nudge furniture",
+        // Repeated taps collapse, so holding an arrow key is one undo.
+        mergeKey: `nudge-${placement.id}`,
+      });
+    },
 
     execute: (command) =>
       set((state) => {
@@ -347,6 +391,74 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     },
 
     selectedOpening: null,
+    openingDrag: null,
+
+    beginOpeningDrag: (wallIndex, id, pointer) => {
+      const state = get();
+      const wall = state.scene.room.walls[wallIndex];
+      const opening = wall?.openings.find((o) => o.id === id);
+      if (!wall || !opening) return;
+
+      const station = nearestWallStation(state.scene.room.polygon, pointer);
+      if (!station || station.index !== wallIndex) return;
+
+      set({
+        selectedOpening: { wallIndex, id },
+        // Grab offset, so the opening does not jump its centre to the pointer.
+        openingDrag: {
+          wallIndex,
+          id,
+          offset: opening.offset,
+          grab: opening.offset - station.offset,
+        },
+      });
+    },
+
+    updateOpeningDrag: (pointer) =>
+      set((state) => {
+        const drag = state.openingDrag;
+        if (!drag) return state;
+
+        const wall = state.scene.room.walls[drag.wallIndex];
+        const opening = wall?.openings.find((o) => o.id === drag.id);
+        const station = nearestWallStation(state.scene.room.polygon, pointer);
+        if (!wall || !opening || !station) return state;
+
+        // Project onto the opening's own wall, so it never jumps to another.
+        const length = distance(wall.start, wall.end);
+        const raw =
+          station.index === drag.wallIndex
+            ? station.offset + drag.grab
+            : drag.offset;
+        const snapped = snapToGrid(raw, state.snap.grid);
+
+        return {
+          openingDrag: {
+            ...drag,
+            offset: Math.min(Math.max(snapped, 0), Math.max(length - opening.width, 0)),
+          },
+        };
+      }),
+
+    endOpeningDrag: () => {
+      const state = get();
+      const drag = state.openingDrag;
+      set({ openingDrag: null });
+      if (!drag) return;
+
+      const wall = state.scene.room.walls[drag.wallIndex];
+      const opening = wall?.openings.find((o) => o.id === drag.id);
+      if (!opening || opening.offset === drag.offset) return;
+
+      state.execute(
+        updateOpening(
+          drag.wallIndex,
+          opening,
+          { ...opening, offset: drag.offset },
+          "offset",
+        ),
+      );
+    },
 
     selectOpening: (selectedOpening) => set({ selectedOpening }),
 
@@ -456,6 +568,24 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
           state.scene.room.walls.map((wall) => wall.openings),
         ),
       );
+    },
+
+    applyFloorMaterial: (id) => {
+      const state = get();
+      const current = state.scene.room.floorMaterial;
+      if (current === id) return;
+      state.execute(setFloorMaterial(current, id));
+    },
+
+    newScene: () => {
+      const state = get();
+      if (
+        state.scene.room.polygon.length === 0 &&
+        state.scene.placements.length === 0
+      ) {
+        return;
+      }
+      state.replaceScene(emptyScene());
     },
 
     applyWallSettings: (partial) => {
@@ -688,6 +818,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         cursor: null,
         dragging: null,
         placementDrag: null,
+        openingDrag: null,
         selectedId: null,
         selectedOpening: null,
         pendingOpening: null,
@@ -704,6 +835,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         cursor: null,
         dragging: null,
         placementDrag: null,
+        openingDrag: null,
         selectedId: null,
         selectedVertex: null,
         pendingOpening: null,

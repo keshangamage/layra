@@ -14,6 +14,7 @@ export {
   removeVertex,
   roomFromPolygon,
   rotatePlacement,
+  setFloorMaterial,
   setPlacementLock,
   setPlacementRotation,
   setWallSettings,
@@ -25,6 +26,12 @@ export {
 } from "./commands";
 
 export { CATALOG, findCatalogItem } from "./catalog";
+
+export {
+  FLOOR_MATERIALS,
+  findFloorMaterial,
+  type FloorMaterial,
+} from "./materials";
 
 export {
   DEFAULT_MOUNT_HEIGHT,

@@ -546,3 +546,96 @@ describe("absolute rotation", () => {
     expect(s.getState().past).toHaveLength(before);
   });
 });
+
+describe("snapping preferences", () => {
+  it("changes the grid without touching history", () => {
+    const s = storeWithRoom();
+    s.getState().setSnap({ grid: 0.25 });
+    expect(s.getState().snap.grid).toBe(0.25);
+    expect(s.getState().past).toHaveLength(1);
+  });
+
+  it("changes only what is passed", () => {
+    const s = storeWithRoom();
+    const angle = s.getState().snap.angle;
+    s.getState().setSnap({ grid: 0.5 });
+    expect(s.getState().snap.angle).toBe(angle);
+  });
+
+  it("is used by placement", () => {
+    const s = storeWithRoom();
+    s.getState().setSnap({ grid: 0.5 });
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1.7, z: 1.4 }, true);
+    expect(s.getState().scene.placements[0]?.position.x).toBeCloseTo(1.5);
+  });
+});
+
+describe("nudging", () => {
+  function storeWithDesk() {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 2, z: 1.5 }, true);
+    return s;
+  }
+
+  const desk = (s: ReturnType<typeof storeWithDesk>) =>
+    s.getState().scene.placements[0]!;
+
+  it("moves by one grid step", () => {
+    const s = storeWithDesk();
+    s.getState().nudgeSelected(1, 0);
+    expect(desk(s).position.x).toBeCloseTo(2.1);
+  });
+
+  it("multiplies for a bigger step", () => {
+    const s = storeWithDesk();
+    s.getState().nudgeSelected(0, 1, 10);
+    expect(desk(s).position.z).toBeCloseTo(2.5);
+  });
+
+  it("follows the current grid setting", () => {
+    const s = storeWithDesk();
+    s.getState().setSnap({ grid: 0.5 });
+    s.getState().nudgeSelected(1, 0);
+    expect(desk(s).position.x).toBeCloseTo(2.5);
+  });
+
+  it("stays on the grid", () => {
+    const s = storeWithDesk();
+    for (let i = 0; i < 7; i++) s.getState().nudgeSelected(1, 0);
+    expect(desk(s).position.x * 10).toBeCloseTo(Math.round(desk(s).position.x * 10));
+  });
+
+  it("keeps repeated taps to one undo", () => {
+    const s = storeWithDesk();
+    const before = s.getState().past.length;
+    for (let i = 0; i < 5; i++) s.getState().nudgeSelected(1, 0);
+    expect(s.getState().past).toHaveLength(before + 1);
+
+    s.getState().undo();
+    expect(desk(s).position.x).toBeCloseTo(2);
+  });
+
+  it("leaves height and rotation alone", () => {
+    const s = storeWithDesk();
+    s.getState().setSelectedRotation(1);
+    s.getState().nudgeSelected(1, 0);
+    expect(desk(s).rotationY).toBeCloseTo(1);
+    expect(desk(s).position.y).toBe(0);
+  });
+
+  it("refuses a locked piece", () => {
+    const s = storeWithDesk();
+    s.getState().toggleSelectedLock();
+    s.getState().nudgeSelected(1, 0);
+    expect(desk(s).position.x).toBeCloseTo(2);
+  });
+
+  it("does nothing without a selection", () => {
+    const s = storeWithDesk();
+    s.getState().selectPlacement(null);
+    s.getState().nudgeSelected(1, 0);
+    expect(desk(s).position.x).toBeCloseTo(2);
+  });
+});
