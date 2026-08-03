@@ -15,6 +15,7 @@ import { DraftPolyline } from "./DraftPolyline";
 import { VertexHandles } from "./VertexHandles";
 import { Furniture } from "./Furniture";
 import { FurniturePlacer } from "./FurniturePlacer";
+import { CameraRig } from "./CameraRig";
 import { Dimensions } from "./Dimensions";
 import { MeasureTool } from "./MeasureTool";
 
@@ -142,6 +143,7 @@ export default function Scene() {
       <Room />
       <Furniture />
       <FurniturePlacer />
+      <CameraRig />
       <DraftPolyline />
       <VertexHandles />
       {/*
@@ -170,6 +172,7 @@ export default function Scene() {
       />
 
       <OrbitControls
+        makeDefault
         // R3F's stopPropagation doesn't reach OrbitControls, which listens on
         // the canvas directly, so a handle drag would orbit the camera too.
         enabled={!isDragging}

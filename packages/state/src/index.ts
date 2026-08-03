@@ -55,6 +55,8 @@ export {
   type EditorStore,
   type Mode,
   type OpeningShape,
+  type ViewKind,
+  type ViewRequest,
   type SnapSettings,
 } from "./store";
 

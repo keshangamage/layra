@@ -42,6 +42,26 @@ export function Toolbar() {
         ))}
       </div>
 
+      <div className="flex items-center gap-0.5">
+        {(["top", "iso", "fit"] as const).map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            onClick={() => editor().requestView(kind)}
+            className="rounded px-2 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-zinc-200"
+            title={
+              kind === "top"
+                ? "Look straight down"
+                : kind === "iso"
+                  ? "Angled view"
+                  : "Frame the room"
+            }
+          >
+            {kind === "iso" ? "3D" : kind === "top" ? "Plan" : "Fit"}
+          </button>
+        ))}
+      </div>
+
       <FileActions />
 
       <span className="ml-auto text-xs text-zinc-500">{hint}</span>

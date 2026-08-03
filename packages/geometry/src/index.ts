@@ -46,6 +46,8 @@ export {
 
 export { triangulateFloor, triangulatePolygon } from "./triangulate";
 
+export { fitDistance } from "./camera";
+
 export {
   facePanels,
   nearestWallStation,

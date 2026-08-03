@@ -36,6 +36,14 @@ import { mountToWall, snapFloorToWall } from "./mounting";
 
 export type Mode = "draw" | "edit" | "measure";
 
+export type ViewKind = "top" | "iso" | "fit";
+
+/** The nonce lets the same view be requested twice in a row. */
+export interface ViewRequest {
+  kind: ViewKind;
+  nonce: number;
+}
+
 /** The editable dimensions of an opening. */
 export type OpeningShape = Pick<
   Opening,
@@ -96,6 +104,10 @@ export interface EditorState {
   addMeasurePoint: (point: Vec2) => void;
   setMeasureCursor: (point: Vec2 | null) => void;
   clearMeasure: () => void;
+
+  /** Latest camera request, consumed by the renderer. */
+  view: ViewRequest | null;
+  requestView: (kind: ViewKind) => void;
 
   /** Wall length labels. */
   showDimensions: boolean;
@@ -265,6 +277,10 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     measure: { from: null, to: null },
     showDimensions: true,
+    view: null,
+
+    requestView: (kind) =>
+      set((state) => ({ view: { kind, nonce: (state.view?.nonce ?? 0) + 1 } })),
 
     toggleDimensions: () => set((state) => ({ showDimensions: !state.showDimensions })),
 
@@ -662,7 +678,9 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     },
 
     resetScene: (next) =>
-      set({
+      set((state) => ({
+        // Loading a scene should frame it, not leave it off screen.
+        view: { kind: "fit", nonce: (state.view?.nonce ?? 0) + 1 },
         scene: next,
         past: [],
         future: [],
@@ -675,7 +693,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         pendingOpening: null,
         measure: { from: null, to: null },
         mode: next.room.polygon.length >= 3 ? "edit" : "draw",
-      }),
+      })),
 
     replaceScene: (next) => {
       const state = get();
