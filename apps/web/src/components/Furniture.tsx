@@ -6,7 +6,6 @@ import {
   findCatalogItem,
   findCollisions,
   isBlocked,
-  activeRoom,
 } from "@layra/state";
 import type { Rect } from "@layra/geometry";
 import type { Placement } from "@layra/types";
@@ -87,7 +86,7 @@ export function Furniture() {
   // Subscribe to stable slices and merge here. livePlacements builds a fresh
   // object per call, so as a selector it makes getSnapshot loop forever.
   const stored = useEditor((state) => state.scene.placements);
-  const room = useEditor((state) => activeRoom(state));
+  const rooms = useEditor((state) => state.scene.rooms);
   const drag = useEditor((state) => state.placementDrag);
   const selectedId = useEditor((state) => state.selectedId);
   const groundAt = useGroundPointer();
@@ -104,8 +103,8 @@ export function Furniture() {
 
   // Recomputed against the live positions, so the warning tracks the drag.
   const collisions = useMemo(
-    () => findCollisions(room, placements),
-    [room, placements],
+    () => findCollisions(rooms, placements),
+    [rooms, placements],
   );
 
   // Only the selected piece shows its zone, or the floor turns to soup.

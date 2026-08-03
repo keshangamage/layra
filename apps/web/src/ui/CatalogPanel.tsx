@@ -8,14 +8,14 @@ import { editor, useEditor } from "@/state/editor";
 
 export function CatalogPanel() {
   const hasRoom = useEditor((state) => activeRoom(state).polygon.length >= 3);
-  const room = useEditor((state) => activeRoom(state));
+  const rooms = useEditor((state) => state.scene.rooms);
   const placements = useEditor((state) => state.scene.placements);
 
   const pending = useEditor((state) => state.pendingFurniture);
 
   const report = useMemo(
-    () => findCollisions(room, placements),
-    [room, placements],
+    () => findCollisions(rooms, placements),
+    [rooms, placements],
   );
   const blocked = new Set([...report.overlapping, ...report.outOfRoom]).size;
 

@@ -4,6 +4,7 @@
 export {
   addOpening,
   addPlacement,
+  addRoom,
   addVertex,
   closeRoom,
   loadScene,
@@ -11,7 +12,9 @@ export {
   moveVertex,
   removeOpening,
   removePlacement,
+  removeRoom,
   removeVertex,
+  renameRoom,
   roomFromPolygon,
   rotatePlacement,
   setFloorMaterial,

@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
+  emptyRoom,
   emptyScene,
   type Room,
   type Opening,
@@ -14,13 +15,16 @@ import { findCatalogItem } from "./catalog";
 import {
   addOpening,
   addPlacement,
+  addRoom,
   addVertex,
   closeRoom,
   loadScene,
   moveVertex,
   removeOpening,
   removePlacement,
+  removeRoom,
   removeVertex,
+  renameRoom,
   rotatePlacement,
   setFloorMaterial,
   setPlacementLock,
@@ -105,6 +109,11 @@ export interface EditorState {
 
   applyWallSettings: (next: Partial<WallSettings>) => void;
   applyFloorMaterial: (id: string) => void;
+
+  setActiveRoom: (index: number) => void;
+  addRoom: () => void;
+  deleteRoom: (index: number) => void;
+  renameRoom: (index: number, name: string) => void;
   /** Clears to an empty scene. Undoable, so it needs no confirmation. */
   newScene: () => void;
   replaceScene: (next: Scene) => void;
@@ -590,6 +599,71 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
           activeRoom(state).walls.map((wall) => wall.openings),
         ),
       );
+    },
+
+    setActiveRoom: (index) => {
+      const state = get();
+      if (index < 0 || index >= state.scene.rooms.length) return;
+      set({
+        activeRoomIndex: index,
+        // Selections and drafts belong to the room being left.
+        draft: [],
+        cursor: null,
+        dragging: null,
+        selectedVertex: null,
+        selectedOpening: null,
+        pendingOpening: null,
+        pendingFurniture: null,
+        furnitureGhost: null,
+        mode: state.scene.rooms[index]!.polygon.length >= 3 ? "edit" : "draw",
+      });
+    },
+
+    addRoom: () => {
+      const state = get();
+      const room = emptyRoom(
+        crypto.randomUUID(),
+        `Room ${state.scene.rooms.length + 1}`,
+      );
+      state.execute(addRoom(room));
+      // A new room has no walls yet, so drop straight into drawing it. Armed
+      // tools belong to the room being left, so clear them too.
+      set({
+        activeRoomIndex: state.scene.rooms.length,
+        mode: "draw",
+        draft: [],
+        cursor: null,
+        selectedId: null,
+        selectedVertex: null,
+        selectedOpening: null,
+        pendingOpening: null,
+        pendingFurniture: null,
+        furnitureGhost: null,
+      });
+    },
+
+    deleteRoom: (index) => {
+      const state = get();
+      const room = state.scene.rooms[index];
+      // A scene always keeps at least one room.
+      if (!room || state.scene.rooms.length <= 1) return;
+
+      state.execute(removeRoom(index, room));
+      const nextIndex = Math.max(0, Math.min(state.activeRoomIndex, state.scene.rooms.length - 2));
+      set({
+        activeRoomIndex: nextIndex,
+        selectedVertex: null,
+        selectedOpening: null,
+        draft: [],
+        cursor: null,
+      });
+    },
+
+    renameRoom: (index, name) => {
+      const state = get();
+      const room = state.scene.rooms[index];
+      if (!room || room.name === name) return;
+      state.execute(renameRoom(index, room.name, name));
     },
 
     applyFloorMaterial: (id) => {

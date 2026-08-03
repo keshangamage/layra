@@ -48,9 +48,10 @@ export function clearanceRect(placement: Placement): Rect | null {
  * face, since that is the usable floor.
  */
 export function findCollisions(
-  room: Room,
+  rooms: Room | readonly Room[],
   placements: readonly Placement[],
 ): CollisionReport {
+  const all = Array.isArray(rooms) ? rooms : [rooms as Room];
   const overlapping = new Set<string>();
   const outOfRoom = new Set<string>();
   const crowded = new Set<string>();
@@ -69,14 +70,17 @@ export function findCollisions(
       clearance: clearanceRect(entry.placement),
     }));
 
-  const thickness = room.walls[0]?.thickness ?? 0;
-  const inner =
-    room.polygon.length >= 3 ? wallLoops(room.polygon, thickness).inner : [];
+  // A piece is inside the plan if any room contains it, so furniture in a
+  // second room is not reported as out of bounds.
+  const innerLoops = all
+    .filter((room) => room.polygon.length >= 3)
+    .map((room) => wallLoops(room.polygon, room.walls[0]?.thickness ?? 0).inner);
 
   for (const entry of entries) {
     // Wall-mounted pieces sit in the wall, so containment does not apply.
-    if (entry.wallMounted || inner.length < 3) continue;
-    if (!polygonContains(entry.corners, inner)) outOfRoom.add(entry.id);
+    if (entry.wallMounted || innerLoops.length === 0) continue;
+    const housed = innerLoops.some((inner) => polygonContains(entry.corners, inner));
+    if (!housed) outOfRoom.add(entry.id);
   }
 
   for (let i = 0; i < entries.length; i++) {

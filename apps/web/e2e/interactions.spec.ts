@@ -345,3 +345,41 @@ test("changing the grid changes how far a nudge moves", async ({ page }) => {
   );
   expect(value).toBe(0.5);
 });
+
+test("draws a second room without disturbing the first", async ({ page }) => {
+  await drawRoom(page);
+  const first = await polygon(page);
+  expect(first).toHaveLength(4);
+
+  const panel = page.locator("section").filter({ hasText: "Rooms" }).first();
+  await panel.getByRole("button", { name: "Add" }).click();
+  await expect(panel.getByText("Room 2", { exact: true })).toBeVisible();
+
+  // The new room starts empty and in draw mode.
+  const box = (await page.locator("canvas").boundingBox())!;
+  for (const [u, v] of [[0.22, 0.5], [0.34, 0.5], [0.34, 0.62]]) {
+    await page.mouse.click(box.x + box.width * u!, box.y + box.height * v!);
+  }
+  await page.keyboard.press("Enter");
+
+  const rooms = await page.evaluate(
+    () =>
+      (window as unknown as {
+        __layraStore: {
+          getState(): { scene: { rooms: { polygon: unknown[] }[] } };
+        };
+      }).__layraStore.getState().scene.rooms.map((r) => r.polygon.length),
+  );
+  expect(rooms).toEqual([4, 3]);
+});
+
+test("switching rooms changes what edits apply to", async ({ page }) => {
+  await drawRoom(page);
+  const panel = page.locator("section").filter({ hasText: "Rooms" }).first();
+  await panel.getByRole("button", { name: "Add" }).click();
+  await expect(panel.getByText("Room 2", { exact: true })).toBeVisible();
+
+  // Back to the first room; its four walls should be reported again.
+  await panel.getByText("Room 1", { exact: true }).click();
+  expect(await polygon(page)).toHaveLength(4);
+});

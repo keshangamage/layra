@@ -234,6 +234,46 @@ export function removeVertex(
   };
 }
 
+export function addRoom(room: Room): Command {
+  return {
+    label: `Add ${room.name}`,
+    do: (scene) => ({ ...scene, rooms: [...scene.rooms, room] }),
+    undo: (scene) => ({
+      ...scene,
+      rooms: scene.rooms.filter((existing) => existing.id !== room.id),
+    }),
+  };
+}
+
+export function removeRoom(index: number, room: Room): Command {
+  return {
+    label: `Delete ${room.name}`,
+    do: (scene) => ({
+      ...scene,
+      rooms: scene.rooms.filter((_, i) => i !== index),
+    }),
+    // Restores at its original position so undo does not reorder the list.
+    undo: (scene) => {
+      const rooms = [...scene.rooms];
+      rooms.splice(Math.min(index, rooms.length), 0, room);
+      return { ...scene, rooms };
+    },
+  };
+}
+
+export function renameRoom(index: number, from: string, to: string): Command {
+  const apply = (scene: Scene, name: string): Scene => {
+    const room = roomAt(scene, index);
+    return room ? withRoom(scene, index, { ...room, name }) : scene;
+  };
+  return {
+    label: "Rename room",
+    mergeKey: `rename-${index}`,
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
 export function setFloorMaterial(
   roomIndex: number,
   from: string,

@@ -1,8 +1,6 @@
 "use client";
 
-import { findCatalogItem, findCollisions, isBlocked,
-  activeRoom,
-} from "@layra/state";
+import { findCatalogItem, findCollisions, isBlocked } from "@layra/state";
 import { formatLength } from "@layra/geometry";
 import { useMemo } from "react";
 import { editor, useEditor } from "@/state/editor";
@@ -26,20 +24,20 @@ function Row({ label, value }: { label: string; value: string }) {
 export function SelectionPanel() {
   const placements = useEditor((state) => state.scene.placements);
   const selectedId = useEditor((state) => state.selectedId);
-  const room = useEditor((state) => activeRoom(state));
+  const rooms = useEditor((state) => state.scene.rooms);
 
   const selected = placements.find((p) => p.id === selectedId);
   const item = selected ? findCatalogItem(selected.catalogItemId) : undefined;
 
   const status = useMemo(() => {
     if (!selected) return null;
-    const report = findCollisions(room, placements);
+    const report = findCollisions(rooms, placements);
     if (isBlocked(report, selected.id)) return { label: "Clashes", tone: "text-red-400" };
     if (report.crowded.has(selected.id)) {
       return { label: "Clearance blocked", tone: "text-amber-400" };
     }
     return { label: "Fits", tone: "text-zinc-500" };
-  }, [selected, room, placements]);
+  }, [selected, rooms, placements]);
 
   if (!selected || !item) return null;
 

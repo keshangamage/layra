@@ -22,7 +22,8 @@ import { Openings } from "./Openings";
 import { Dimensions } from "./Dimensions";
 import { MeasureTool } from "./MeasureTool";
 
-function Room() {
+/** The room being edited, which follows an in-progress vertex drag. */
+function ActiveRoom() {
   // livePolygon builds a new array mid-drag, so compare by element identity.
   const polygon = useEditor(useShallow(livePolygon));
   const walls = useEditor((state) => activeRoom(state).walls);
@@ -62,6 +63,37 @@ function Room() {
 
 /** Remounting the Canvas is more reliable than reviving a dead renderer. */
 const MAX_RECOVERY_ATTEMPTS = 2;
+
+/** Every room except the one being edited, drawn without pointer handling. */
+function OtherRooms() {
+  const rooms = useEditor((state) => state.scene.rooms);
+  const activeIndex = useEditor((state) => state.activeRoomIndex);
+
+  return (
+    <group>
+      {rooms.map((room, index) => {
+        if (index === activeIndex || room.polygon.length < 3) return null;
+        const height = room.walls[0]?.height ?? 2.5;
+        const thickness = room.walls[0]?.thickness ?? 0.2;
+        return (
+          <group key={room.id}>
+            <Floor
+              polygon={room.polygon}
+              thickness={thickness}
+              material={room.floorMaterial}
+            />
+            <Walls
+              polygon={room.polygon}
+              height={height}
+              thickness={thickness}
+              openings={room.walls.map((wall) => wall.openings)}
+            />
+          </group>
+        );
+      })}
+    </group>
+  );
+}
 
 export default function Scene() {
   const [contextLost, setContextLost] = useState(false);
@@ -151,7 +183,8 @@ export default function Scene() {
         shadow-camera-far={40}
       />
 
-      <Room />
+      <OtherRooms />
+      <ActiveRoom />
       <Furniture />
       <Openings />
       <FurniturePlacer />

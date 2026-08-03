@@ -24,7 +24,9 @@ export function FurniturePlacer() {
   const pending = useEditor((state) => state.pendingFurniture);
   const ghost = useEditor((state) => state.furnitureGhost);
   const freeform = useEditor((state) => state.freeformPlacement);
-  const room = useEditor((state) => activeRoom(state));
+  const rooms = useEditor((state) => state.scene.rooms);
+  // Snapping targets the room being edited; collision spans them all.
+  const active = useEditor((state) => activeRoom(state));
   const placements = useEditor((state) => state.scene.placements);
   const domElement = useThree((state) => state.gl.domElement);
   const groundAt = useGroundPointer();
@@ -78,10 +80,10 @@ export function FurniturePlacer() {
   // The ghost shows exactly where the piece will land, wall snap included.
   const preview = useMemo(() => {
     if (!item || !ghost) return null;
-    if (item.wallMounted) return mountToWall(room, ghost, item);
-    const snapped = freeform ? null : snapFloorToWall(room, ghost, item);
+    if (item.wallMounted) return mountToWall(active, ghost, item);
+    const snapped = freeform ? null : snapFloorToWall(active, ghost, item);
     return snapped ?? { position: { x: ghost.x, y: 0, z: ghost.z }, rotationY: 0 };
-  }, [item, ghost, room, freeform]);
+  }, [item, ghost, active, freeform]);
 
   // Test the ghost against the real scene so it warns before you commit.
   const blocked = useMemo(() => {
@@ -93,8 +95,8 @@ export function FurniturePlacer() {
       rotationY: preview.rotationY,
       locked: false,
     };
-    return isBlocked(findCollisions(room, [...placements, candidate]), GHOST_ID);
-  }, [item, preview, room, placements]);
+    return isBlocked(findCollisions(rooms, [...placements, candidate]), GHOST_ID);
+  }, [item, preview, rooms, placements]);
 
   if (!item || !preview) return null;
 
