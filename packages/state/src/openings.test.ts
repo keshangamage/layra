@@ -324,3 +324,107 @@ describe("surviving a vertex drag", () => {
     expect(s.getState().scene.room.walls[0]!.openings[0]!.id).toBe(id);
   });
 });
+
+describe("dragging an opening", () => {
+  function storeWithDoor() {
+    const s = storeWithRoom();
+    s.getState().armOpening("door");
+    s.getState().placeOpeningAt({ x: 3, z: 0 });
+    return s;
+  }
+
+  const door = (s: ReturnType<typeof storeWithDoor>) =>
+    s.getState().scene.room.walls[0]!.openings[0]!;
+
+  it("slides along its wall", () => {
+    const s = storeWithDoor();
+    const before = door(s).offset;
+    s.getState().beginOpeningDrag(0, door(s).id, { x: 3, z: 0 });
+    s.getState().updateOpeningDrag({ x: 1.5, z: 0 });
+    s.getState().endOpeningDrag();
+
+    // Dragging snaps to the 0.1m grid, so it lands within half a step.
+    expect(Math.abs(door(s).offset - (before - 1.5))).toBeLessThanOrEqual(0.05 + 1e-9);
+  });
+
+  it("snaps the offset to the grid", () => {
+    const s = storeWithDoor();
+    s.getState().beginOpeningDrag(0, door(s).id, { x: 3, z: 0 });
+    s.getState().updateOpeningDrag({ x: 1.53, z: 0 });
+    s.getState().endOpeningDrag();
+    expect(door(s).offset * 10).toBeCloseTo(Math.round(door(s).offset * 10));
+  });
+
+  it("keeps the grab offset instead of centring on the pointer", () => {
+    const s = storeWithDoor();
+    const before = door(s).offset;
+    // Grab 0.5m to the right of where the door starts.
+    s.getState().beginOpeningDrag(0, door(s).id, { x: before + 0.5, z: 0 });
+    s.getState().updateOpeningDrag({ x: before + 1.5, z: 0 });
+    s.getState().endOpeningDrag();
+    // Pointer moved 1m, so the door moved 1m, give or take the grid snap.
+    expect(Math.abs(door(s).offset - (before + 1))).toBeLessThanOrEqual(0.05 + 1e-9);
+  });
+
+  it("never leaves the wall", () => {
+    const s = storeWithDoor();
+    s.getState().beginOpeningDrag(0, door(s).id, { x: 3, z: 0 });
+    s.getState().updateOpeningDrag({ x: 99, z: 0 });
+    s.getState().endOpeningDrag();
+    expect(door(s).offset + door(s).width).toBeLessThanOrEqual(6 + 1e-9);
+
+    s.getState().beginOpeningDrag(0, door(s).id, { x: door(s).offset, z: 0 });
+    s.getState().updateOpeningDrag({ x: -99, z: 0 });
+    s.getState().endOpeningDrag();
+    expect(door(s).offset).toBe(0);
+  });
+
+  it("stays on its own wall even when the pointer strays to another", () => {
+    const s = storeWithDoor();
+    s.getState().beginOpeningDrag(0, door(s).id, { x: 3, z: 0 });
+    s.getState().updateOpeningDrag({ x: 6, z: 2 });
+    const held = s.getState().openingDrag!.offset;
+    s.getState().endOpeningDrag();
+    expect(door(s).offset).toBeCloseTo(held);
+    expect(s.getState().scene.room.walls[1]?.openings).toHaveLength(0);
+  });
+
+  it("records one history entry per gesture", () => {
+    const s = storeWithDoor();
+    const before = s.getState().past.length;
+    s.getState().beginOpeningDrag(0, door(s).id, { x: 3, z: 0 });
+    for (const x of [2.5, 2, 1.5]) s.getState().updateOpeningDrag({ x, z: 0 });
+    s.getState().endOpeningDrag();
+    expect(s.getState().past).toHaveLength(before + 1);
+  });
+
+  it("records nothing when it did not move", () => {
+    const s = storeWithDoor();
+    const before = s.getState().past.length;
+    s.getState().beginOpeningDrag(0, door(s).id, { x: 3, z: 0 });
+    s.getState().endOpeningDrag();
+    expect(s.getState().past).toHaveLength(before);
+  });
+
+  it("selects the opening it grabbed", () => {
+    const s = storeWithDoor();
+    s.getState().beginOpeningDrag(0, door(s).id, { x: 3, z: 0 });
+    expect(s.getState().selectedOpening?.id).toBe(door(s).id);
+  });
+
+  it("undoes back to where it started", () => {
+    const s = storeWithDoor();
+    const before = door(s).offset;
+    s.getState().beginOpeningDrag(0, door(s).id, { x: 3, z: 0 });
+    s.getState().updateOpeningDrag({ x: 1, z: 0 });
+    s.getState().endOpeningDrag();
+    s.getState().undo();
+    expect(door(s).offset).toBeCloseTo(before);
+  });
+
+  it("ignores a grab on an unknown opening", () => {
+    const s = storeWithDoor();
+    s.getState().beginOpeningDrag(0, "nope", { x: 3, z: 0 });
+    expect(s.getState().openingDrag).toBeNull();
+  });
+});

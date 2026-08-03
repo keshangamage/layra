@@ -39,6 +39,17 @@ export function FileActions() {
 
   return (
     <div className="flex items-center gap-1">
+      <button
+        type="button"
+        className={BUTTON}
+        title="Start an empty scene (undoable)"
+        onClick={() => {
+          setError(null);
+          editor().newScene();
+        }}
+      >
+        New
+      </button>
       <button type="button" className={BUTTON} onClick={save}>
         Save
       </button>

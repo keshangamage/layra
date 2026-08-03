@@ -16,6 +16,7 @@ import { VertexHandles } from "./VertexHandles";
 import { Furniture } from "./Furniture";
 import { FurniturePlacer } from "./FurniturePlacer";
 import { CameraRig } from "./CameraRig";
+import { Openings } from "./Openings";
 import { Dimensions } from "./Dimensions";
 import { MeasureTool } from "./MeasureTool";
 
@@ -26,12 +27,17 @@ function Room() {
   const openings = useMemo(() => walls.map((wall) => wall.openings), [walls]);
   const height = useEditor((state) => currentWallSettings(state).height);
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
+  const floorMaterial = useEditor((state) => state.scene.room.floorMaterial);
 
   if (polygon.length < 3) return null;
 
   return (
     <>
-      <Floor polygon={polygon} thickness={thickness} />
+      <Floor
+        polygon={polygon}
+        thickness={thickness}
+        material={floorMaterial}
+      />
       <Walls
         polygon={polygon}
         height={height}
@@ -61,7 +67,10 @@ export default function Scene() {
   const attempts = useRef(0);
   const polygon = useEditor((state) => state.scene.room.polygon);
   const isDragging = useEditor(
-    (state) => state.dragging !== null || state.placementDrag !== null,
+    (state) =>
+      state.dragging !== null ||
+      state.placementDrag !== null ||
+      state.openingDrag !== null,
   );
   const extent = useMemo(() => bounds(polygon), [polygon]);
 
@@ -142,6 +151,7 @@ export default function Scene() {
 
       <Room />
       <Furniture />
+      <Openings />
       <FurniturePlacer />
       <CameraRig />
       <DraftPolyline />

@@ -237,6 +237,18 @@ export function removeVertex(
   };
 }
 
+export function setFloorMaterial(from: string, to: string): Command {
+  const apply = (scene: Scene, floorMaterial: string): Scene => ({
+    ...scene,
+    room: { ...scene.room, floorMaterial },
+  });
+  return {
+    label: "Change floor",
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
 export function setWallSettings(prev: WallSettings, next: WallSettings): Command {
   const apply = (scene: Scene, settings: WallSettings): Scene =>
     withRoom(scene, {

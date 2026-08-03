@@ -3,14 +3,17 @@
 import { useMemo } from "react";
 import type { Vec2 } from "@layra/types";
 import { triangulateFloor } from "@layra/geometry";
+import { findFloorMaterial } from "@layra/state";
 import { useMeshGeometry } from "./useMeshGeometry";
 
 interface FloorProps {
   polygon: Vec2[];
   thickness: number;
+  material: string;
 }
 
-export function Floor({ polygon, thickness }: FloorProps) {
+export function Floor({ polygon, thickness, material }: FloorProps) {
+  const finish = findFloorMaterial(material);
   const data = useMemo(
     () => triangulateFloor(polygon, thickness),
     [polygon, thickness],
@@ -19,7 +22,11 @@ export function Floor({ polygon, thickness }: FloorProps) {
 
   return (
     <mesh geometry={geometry} receiveShadow>
-      <meshStandardMaterial color="#b8a68f" roughness={0.8} metalness={0} />
+      <meshStandardMaterial
+        color={finish.color}
+        roughness={finish.roughness}
+        metalness={0}
+      />
     </mesh>
   );
 }

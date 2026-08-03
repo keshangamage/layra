@@ -10,6 +10,7 @@ import {
   wallLoops,
 } from "@layra/geometry";
 import { findCatalogItem } from "./catalog";
+import { findFloorMaterial } from "./materials";
 import { placementRect } from "./collision";
 
 export interface SvgOptions {
@@ -116,7 +117,8 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
   parts.push(
     `<path d="${pathOf(outer, to)} ${pathOf(inner, to)}" fill="#d4d4d8" fill-rule="evenodd" stroke="#27272a" stroke-width="1.5"/>`,
   );
-  parts.push(`<path d="${pathOf(inner, to)}" fill="#fafafa" stroke="none"/>`);
+  const floor = findFloorMaterial(scene.room.floorMaterial);
+  parts.push(`<path d="${pathOf(inner, to)}" fill="${floor.color}" stroke="none"/>`);
 
   // Openings: erase the wall across the gap, then draw the symbol. A door gets
   // a leaf and swing arc, a window a pane line.
@@ -127,7 +129,7 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
         if (!plan) continue;
 
         parts.push(
-          `<path d="${pathOf(plan.gap, to)}" fill="#fafafa" stroke="none"/>`,
+          `<path d="${pathOf(plan.gap, to)}" fill="${floor.color}" stroke="none"/>`,
         );
 
         const a = to(plan.gap[0]!);

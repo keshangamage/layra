@@ -193,3 +193,38 @@ export function facePanels(
 
   return panels;
 }
+
+/** Where an opening sits in 3D, for rendering a panel in the hole. */
+export interface OpeningTransform {
+  /** Centre of the opening, at mid height. */
+  position: { x: number; y: number; z: number };
+  /** Rotation about Y that lays a panel flat in the wall. */
+  rotationY: number;
+  width: number;
+  height: number;
+}
+
+export function openingTransform(
+  wallStart: Vec2,
+  wallEnd: Vec2,
+  opening: { offset: number; width: number; height: number; sillHeight: number },
+): OpeningTransform | null {
+  const edge = sub(wallEnd, wallStart);
+  const length = Math.hypot(edge.x, edge.z);
+  if (length < EPSILON) return null;
+
+  const along = { x: edge.x / length, z: edge.z / length };
+  const centre = opening.offset + opening.width / 2;
+
+  return {
+    position: {
+      x: wallStart.x + along.x * centre,
+      y: opening.sillHeight + opening.height / 2,
+      z: wallStart.z + along.z * centre,
+    },
+    // A panel's normal is its local +Z; aim it across the wall, not along it.
+    rotationY: Math.atan2(-along.z, along.x),
+    width: opening.width,
+    height: opening.height,
+  };
+}
