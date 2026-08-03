@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEditorStore } from "./store";
+import { activeRoom, createEditorStore } from "./store";
 
 const square = [
   { x: 0, z: 0 },
@@ -15,7 +15,7 @@ function storeWithRoom() {
   return store;
 }
 
-const wallsOf = (s: ReturnType<typeof storeWithRoom>) => s.getState().scene.room.walls;
+const wallsOf = (s: ReturnType<typeof storeWithRoom>) => activeRoom(s.getState()).walls;
 
 describe("arming", () => {
   it("starts unarmed and toggles", () => {
@@ -165,7 +165,7 @@ describe("editing", () => {
   }
 
   const opening = (s: ReturnType<typeof storeWithRoom>) =>
-    s.getState().scene.room.walls[0]!.openings[0]!;
+    activeRoom(s.getState()).walls[0]!.openings[0]!;
 
   it("selects the opening it just placed", () => {
     const s = storeWithDoor();
@@ -267,7 +267,7 @@ describe("surviving a vertex drag", () => {
     const s = storeWithRoom();
     s.getState().armOpening("door");
     s.getState().placeOpeningAt({ x, z });
-    expect(s.getState().scene.room.walls[wallIndex]!.openings).toHaveLength(1);
+    expect(activeRoom(s.getState()).walls[wallIndex]!.openings).toHaveLength(1);
     return s;
   }
 
@@ -278,7 +278,7 @@ describe("surviving a vertex drag", () => {
     s.getState().updateDrag({ x: 7, z: 0 });
     s.getState().endDrag();
 
-    expect(s.getState().scene.room.walls[0]!.openings).toHaveLength(1);
+    expect(activeRoom(s.getState()).walls[0]!.openings).toHaveLength(1);
   });
 
   it("keeps openings on walls the drag did not touch", () => {
@@ -286,12 +286,12 @@ describe("surviving a vertex drag", () => {
     s.getState().beginDrag(0);
     s.getState().updateDrag({ x: -1, z: 0 });
     s.getState().endDrag();
-    expect(s.getState().scene.room.walls[2]!.openings).toHaveLength(1);
+    expect(activeRoom(s.getState()).walls[2]!.openings).toHaveLength(1);
   });
 
   it("pulls an opening back inside a shortened wall", () => {
     const s = storeWithDoorOn(0, 5.5, 0);
-    const before = s.getState().scene.room.walls[0]!.openings[0]!;
+    const before = activeRoom(s.getState()).walls[0]!.openings[0]!;
     expect(before.offset).toBeCloseTo(5.05);
 
     // Shrink wall 0 from 6m to 3m.
@@ -299,29 +299,29 @@ describe("surviving a vertex drag", () => {
     s.getState().updateDrag({ x: 3, z: 0 });
     s.getState().endDrag();
 
-    const after = s.getState().scene.room.walls[0]!.openings[0]!;
+    const after = activeRoom(s.getState()).walls[0]!.openings[0]!;
     expect(after.offset + after.width).toBeLessThanOrEqual(3 + 1e-9);
   });
 
   it("restores the exact original offset on undo, not the clamped one", () => {
     const s = storeWithDoorOn(0, 5.5, 0);
-    const original = s.getState().scene.room.walls[0]!.openings[0]!.offset;
+    const original = activeRoom(s.getState()).walls[0]!.openings[0]!.offset;
 
     s.getState().beginDrag(1);
     s.getState().updateDrag({ x: 3, z: 0 });
     s.getState().endDrag();
     s.getState().undo();
 
-    expect(s.getState().scene.room.walls[0]!.openings[0]!.offset).toBeCloseTo(original);
+    expect(activeRoom(s.getState()).walls[0]!.openings[0]!.offset).toBeCloseTo(original);
   });
 
   it("keeps opening ids stable across the move", () => {
     const s = storeWithDoorOn(0, 3, 0);
-    const id = s.getState().scene.room.walls[0]!.openings[0]!.id;
+    const id = activeRoom(s.getState()).walls[0]!.openings[0]!.id;
     s.getState().beginDrag(1);
     s.getState().updateDrag({ x: 7, z: 0 });
     s.getState().endDrag();
-    expect(s.getState().scene.room.walls[0]!.openings[0]!.id).toBe(id);
+    expect(activeRoom(s.getState()).walls[0]!.openings[0]!.id).toBe(id);
   });
 });
 
@@ -334,7 +334,7 @@ describe("dragging an opening", () => {
   }
 
   const door = (s: ReturnType<typeof storeWithDoor>) =>
-    s.getState().scene.room.walls[0]!.openings[0]!;
+    activeRoom(s.getState()).walls[0]!.openings[0]!;
 
   it("slides along its wall", () => {
     const s = storeWithDoor();
@@ -386,7 +386,7 @@ describe("dragging an opening", () => {
     const held = s.getState().openingDrag!.offset;
     s.getState().endOpeningDrag();
     expect(door(s).offset).toBeCloseTo(held);
-    expect(s.getState().scene.room.walls[1]?.openings).toHaveLength(0);
+    expect(activeRoom(s.getState()).walls[1]?.openings).toHaveLength(0);
   });
 
   it("records one history entry per gesture", () => {

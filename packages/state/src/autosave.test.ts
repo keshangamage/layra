@@ -8,7 +8,7 @@ import {
   writeAutosave,
   type SceneStorage,
 } from "./autosave";
-import { createEditorStore } from "./store";
+import { activeRoom, createEditorStore } from "./store";
 import { serializeScene } from "./serialize";
 
 function memoryStorage(): SceneStorage & { data: Map<string, string> } {
@@ -107,7 +107,7 @@ describe("attachAutosave", () => {
     expect(storage.data.size).toBe(0);
 
     vi.advanceTimersByTime(500);
-    expect(readAutosave(storage)?.room.walls).toHaveLength(4);
+    expect(readAutosave(storage)?.rooms[0]!.walls).toHaveLength(4);
   });
 
   it("debounces a burst into one write", () => {
@@ -134,7 +134,7 @@ describe("attachAutosave", () => {
     store.getState().applyWallSettings({ thickness: 0.45 });
     vi.advanceTimersByTime(500);
 
-    expect(readAutosave(storage)?.room.walls[0]?.thickness).toBeCloseTo(0.45);
+    expect(readAutosave(storage)?.rooms[0]!.walls[0]?.thickness).toBeCloseTo(0.45);
   });
 
   it("ignores changes that do not touch the scene", () => {
@@ -180,7 +180,7 @@ describe("attachAutosave", () => {
     attachAutosave(store, hostileStorage);
     store.getState().applyWallSettings({ thickness: 0.4 });
     expect(() => vi.advanceTimersByTime(500)).not.toThrow();
-    expect(store.getState().scene.room.walls[0]?.thickness).toBeCloseTo(0.4);
+    expect(activeRoom(store.getState()).walls[0]?.thickness).toBeCloseTo(0.4);
   });
 });
 
@@ -190,7 +190,7 @@ describe("resetScene", () => {
     const store = createEditorStore();
     store.getState().resetScene(saved);
 
-    expect(store.getState().scene.room.walls).toHaveLength(4);
+    expect(activeRoom(store.getState()).walls).toHaveLength(4);
     expect(store.getState().past).toHaveLength(0);
     expect(store.getState().future).toHaveLength(0);
   });

@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo } from "react";
-import { CATALOG, findCollisions } from "@layra/state";
+import { CATALOG, findCollisions,
+  activeRoom,
+} from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 
 export function CatalogPanel() {
-  const hasRoom = useEditor((state) => state.scene.room.polygon.length >= 3);
-  const room = useEditor((state) => state.scene.room);
+  const hasRoom = useEditor((state) => activeRoom(state).polygon.length >= 3);
+  const room = useEditor((state) => activeRoom(state));
   const placements = useEditor((state) => state.scene.placements);
 
   const pending = useEditor((state) => state.pendingFurniture);

@@ -2,7 +2,9 @@
 
 import { useMemo } from "react";
 import { formatArea, formatLength, perimeter, polygonArea, wallLoops } from "@layra/geometry";
-import { FLOOR_MATERIALS, currentWallSettings } from "@layra/state";
+import { FLOOR_MATERIALS, currentWallSettings,
+  activeRoom,
+} from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -15,10 +17,10 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 export function RoomStats() {
-  const polygon = useEditor((state) => state.scene.room.polygon);
+  const polygon = useEditor((state) => activeRoom(state).polygon);
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
   const showDimensions = useEditor((state) => state.showDimensions);
-  const floorMaterial = useEditor((state) => state.scene.room.floorMaterial);
+  const floorMaterial = useEditor((state) => activeRoom(state).floorMaterial);
 
   // Floor area uses the inner wall face, which is the usable space.
   const stats = useMemo(() => {

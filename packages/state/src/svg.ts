@@ -67,15 +67,18 @@ function pathOf(points: readonly Vec2[], to: Transform): string {
 /** Renders the scene as a printable 2D floor plan. */
 export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
   const opts = { ...DEFAULTS, ...options };
-  const { polygon } = scene.room;
+  // Rooms without a closed polygon have nothing to draw.
+  const drawn = scene.rooms.filter((room) => room.polygon.length >= 3);
 
-  if (polygon.length < 3) {
+  if (drawn.length === 0) {
     return `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80" viewBox="0 0 240 80"><text x="12" y="44" font-family="sans-serif" font-size="14" fill="#71717a">No room drawn</text></svg>`;
   }
 
-  const centreline = ensureCCW(polygon);
-  const thickness = scene.room.walls[0]?.thickness ?? 0;
-  const { inner, outer } = wallLoops(centreline, thickness);
+  const shells = drawn.map((room) => {
+    const centreline = ensureCCW(room.polygon);
+    const thickness = room.walls[0]?.thickness ?? 0;
+    return { room, centreline, thickness, ...wallLoops(centreline, thickness) };
+  });
 
   const furniture = opts.showFurniture
     ? scene.placements
@@ -90,7 +93,10 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
     : [];
 
   // Bound everything drawn, not just the walls, so nothing clips.
-  const all: Vec2[] = [...outer, ...furniture.flatMap((f) => f.corners)];
+  const all: Vec2[] = [
+    ...shells.flatMap((shell) => shell.outer),
+    ...furniture.flatMap((f) => f.corners),
+  ];
   const minX = Math.min(...all.map((p) => p.x));
   const maxX = Math.max(...all.map((p) => p.x));
   const minZ = Math.min(...all.map((p) => p.z));
@@ -113,23 +119,29 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
   );
   parts.push(`<rect width="${n(width)}" height="${n(height)}" fill="#ffffff"/>`);
 
-  // Walls as a single filled shell: outer loop with the inner loop as a hole.
-  parts.push(
-    `<path d="${pathOf(outer, to)} ${pathOf(inner, to)}" fill="#d4d4d8" fill-rule="evenodd" stroke="#27272a" stroke-width="1.5"/>`,
-  );
-  const floor = findFloorMaterial(scene.room.floorMaterial);
-  parts.push(`<path d="${pathOf(inner, to)}" fill="${floor.color}" stroke="none"/>`);
+  // Walls as a single filled shell per room: outer loop with inner as a hole.
+  for (const shell of shells) {
+    parts.push(
+      `<path d="${pathOf(shell.outer, to)} ${pathOf(shell.inner, to)}" fill="#d4d4d8" fill-rule="evenodd" stroke="#27272a" stroke-width="1.5"/>`,
+    );
+    const finish = findFloorMaterial(shell.room.floorMaterial);
+    parts.push(
+      `<path d="${pathOf(shell.inner, to)}" fill="${finish.color}" stroke="none"/>`,
+    );
+  }
 
   // Openings: erase the wall across the gap, then draw the symbol. A door gets
   // a leaf and swing arc, a window a pane line.
   if (opts.showOpenings) {
-    for (const wall of scene.room.walls) {
+    for (const wall of drawn.flatMap((room) => room.walls)) {
       for (const opening of wall.openings) {
         const plan = openingFootprint(wall.start, wall.end, opening, wall.thickness);
         if (!plan) continue;
 
         parts.push(
-          `<path d="${pathOf(plan.gap, to)}" fill="${floor.color}" stroke="none"/>`,
+          `<path d="${pathOf(plan.gap, to)}" fill="${findFloorMaterial(
+            drawn.find((room) => room.walls.includes(wall))?.floorMaterial ?? "default",
+          ).color}" stroke="none"/>`,
         );
 
         const a = to(plan.gap[0]!);
@@ -195,7 +207,9 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
   }
 
   if (opts.showDimensions) {
-    for (const label of edgeLabels(centreline, thickness / 2 + 0.3)) {
+    for (const label of shells.flatMap((shell) =>
+      edgeLabels(shell.centreline, shell.thickness / 2 + 0.3),
+    )) {
       const p = to(label.position);
       const degrees = (label.angle * 180) / Math.PI;
       parts.push(
@@ -205,7 +219,9 @@ export function sceneToSvg(scene: Scene, options: SvgOptions = {}): string {
   }
 
   parts.push(
-    `<text x="${n(margin)}" y="${n(height - margin / 2)}" font-family="sans-serif" font-size="11" fill="#71717a">Floor area ${formatArea(polygonArea(inner))} &#183; 1:${n(100 / (scale / 50))} at 50px/m</text>`,
+    `<text x="${n(margin)}" y="${n(height - margin / 2)}" font-family="sans-serif" font-size="11" fill="#71717a">Floor area ${formatArea(
+      shells.reduce((sum, shell) => sum + polygonArea(shell.inner), 0),
+    )} &#183; 1:${n(100 / (scale / 50))} at 50px/m</text>`,
   );
 
   parts.push("</svg>");

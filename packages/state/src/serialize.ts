@@ -88,7 +88,7 @@ function placement(value: unknown): Placement | null {
   };
 }
 
-function room(value: unknown): Room | null {
+function room(value: unknown, fallbackIndex: number): Room | null {
   if (!isRecord(value)) return null;
   if (typeof value.floorMaterial !== "string") return null;
   if (!Array.isArray(value.walls) || !Array.isArray(value.polygon)) return null;
@@ -107,7 +107,14 @@ function room(value: unknown): Room | null {
     polygon.push(parsed);
   }
 
-  return { walls, polygon, floorMaterial: value.floorMaterial };
+  return {
+    // v1 rooms had neither, so synthesise stable ones on the way in.
+    id: typeof value.id === "string" ? value.id : `r${fallbackIndex}`,
+    name: typeof value.name === "string" ? value.name : `Room ${fallbackIndex + 1}`,
+    walls,
+    polygon,
+    floorMaterial: value.floorMaterial,
+  };
 }
 
 /** Validates untrusted JSON rather than trusting its shape. */
@@ -122,15 +129,28 @@ export function parseScene(text: string): ParseResult {
   if (!isRecord(raw)) return { ok: false, error: "Expected a scene object." };
 
   if (!num(raw.version)) return { ok: false, error: "Missing scene version." };
-  if (raw.version !== SCENE_VERSION) {
+  if (raw.version > SCENE_VERSION) {
     return {
       ok: false,
-      error: `Unsupported scene version ${raw.version}; expected ${SCENE_VERSION}.`,
+      error: `Scene version ${raw.version} is newer than this app supports (${SCENE_VERSION}).`,
     };
   }
 
-  const parsedRoom = room(raw.room);
-  if (!parsedRoom) return { ok: false, error: "Room data is malformed." };
+  // v1 held a single `room`; v2 holds `rooms`. Read either.
+  const rawRooms = Array.isArray(raw.rooms)
+    ? raw.rooms
+    : raw.room !== undefined
+      ? [raw.room]
+      : null;
+  if (!rawRooms) return { ok: false, error: "Room data is missing." };
+
+  const rooms: Room[] = [];
+  for (const [index, entry] of rawRooms.entries()) {
+    const parsed = room(entry, index);
+    if (!parsed) return { ok: false, error: "Room data is malformed." };
+    rooms.push(parsed);
+  }
+  if (rooms.length === 0) return { ok: false, error: "A scene needs at least one room." };
 
   if (!Array.isArray(raw.placements)) {
     return { ok: false, error: "Placements must be a list." };
@@ -144,6 +164,6 @@ export function parseScene(text: string): ParseResult {
 
   return {
     ok: true,
-    scene: { version: SCENE_VERSION, room: parsedRoom, placements },
+    scene: { version: SCENE_VERSION, rooms, placements },
   };
 }

@@ -10,6 +10,7 @@ import {
   mountToWall,
   snapFloorToWall,
   snapPoint,
+  activeRoom,
 } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 import { useGroundPointer } from "./useGroundPointer";
@@ -23,7 +24,7 @@ export function FurniturePlacer() {
   const pending = useEditor((state) => state.pendingFurniture);
   const ghost = useEditor((state) => state.furnitureGhost);
   const freeform = useEditor((state) => state.freeformPlacement);
-  const room = useEditor((state) => state.scene.room);
+  const room = useEditor((state) => activeRoom(state));
   const placements = useEditor((state) => state.scene.placements);
   const domElement = useThree((state) => state.gl.domElement);
   const groundAt = useGroundPointer();

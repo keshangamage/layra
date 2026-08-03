@@ -3,13 +3,14 @@
 import { useMemo } from "react";
 import { Text } from "@react-three/drei";
 import { edgeLabels, formatLength } from "@layra/geometry";
+import { activeRoom } from "@layra/state";
 import { useEditor } from "@/state/editor";
 import { LABEL_FONT } from "./font";
 
 const Y = 0.02;
 
 export function Dimensions() {
-  const polygon = useEditor((state) => state.scene.room.polygon);
+  const polygon = useEditor((state) => activeRoom(state).polygon);
   const show = useEditor((state) => state.showDimensions);
 
   const labels = useMemo(() => edgeLabels(polygon, 0.4), [polygon]);

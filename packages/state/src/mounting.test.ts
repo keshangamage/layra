@@ -13,6 +13,7 @@ const room = roomFromPolygon(
     { x: 0, z: 4 },
   ],
   { height: 2.5, thickness: 0.2 },
+  { id: "r0", name: "Room 1", floorMaterial: "default" },
 );
 
 const shelf = findCatalogItem("wall-shelf")!;
@@ -69,7 +70,7 @@ describe("mountToWall", () => {
   });
 
   it("returns null without a room", () => {
-    expect(mountToWall({ walls: [], polygon: [], floorMaterial: "d" }, { x: 0, z: 0 }, shelf))
+    expect(mountToWall({ id: "r0", name: "Room 1", walls: [], polygon: [], floorMaterial: "d" }, { x: 0, z: 0 }, shelf))
       .toBeNull();
   });
 });

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useThree } from "@react-three/fiber";
 import { PerspectiveCamera, Vector3 } from "three";
 import { bounds, fitDistance } from "@layra/geometry";
-import type { ViewKind } from "@layra/state";
+import { activeRoom, type ViewKind } from "@layra/state";
 import { useEditor } from "@/state/editor";
 
 /** Looking exactly straight down leaves the camera's up vector undefined. */
@@ -22,7 +22,7 @@ interface Controls {
 
 export function CameraRig() {
   const view = useEditor((state) => state.view);
-  const polygon = useEditor((state) => state.scene.room.polygon);
+  const polygon = useEditor((state) => activeRoom(state).polygon);
   const camera = useThree((state) => state.camera);
   const controls = useThree((state) => state.controls) as Controls | null;
   const size = useThree((state) => state.size);

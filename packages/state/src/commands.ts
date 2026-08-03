@@ -34,7 +34,7 @@ export interface WallSettings {
 export function roomFromPolygon(
   polygon: readonly Vec2[],
   settings: WallSettings,
-  floorMaterial = "default",
+  base: Pick<Room, "id" | "name" | "floorMaterial">,
 ): Room {
   const normalized = ensureCCW(polygon);
   const walls: Wall[] = normalized.map((start, i) => ({
@@ -45,27 +45,42 @@ export function roomFromPolygon(
     thickness: settings.thickness,
     openings: [],
   }));
-  return { walls, polygon: normalized, floorMaterial };
+  return { ...base, walls, polygon: normalized };
 }
 
 /** Height and thickness of the current room, or the fallback when there is none. */
-export function wallSettingsOf(scene: Scene, fallback: WallSettings): WallSettings {
-  const first = scene.room.walls[0];
+export function wallSettingsOf(
+  scene: Scene,
+  index: number,
+  fallback: WallSettings,
+): WallSettings {
+  const first = scene.rooms[index]?.walls[0];
   if (!first) return fallback;
   return { height: first.height, thickness: first.thickness };
 }
 
-function withRoom(scene: Scene, room: Room): Scene {
-  return { ...scene, room };
+function withRoom(scene: Scene, index: number, room: Room): Scene {
+  return {
+    ...scene,
+    rooms: scene.rooms.map((existing, i) => (i === index ? room : existing)),
+  };
 }
 
-export function closeRoom(polygon: readonly Vec2[], settings: WallSettings): Command {
-  const next = roomFromPolygon(polygon, settings);
+function roomAt(scene: Scene, index: number): Room | undefined {
+  return scene.rooms[index];
+}
+
+export function closeRoom(
+  index: number,
+  polygon: readonly Vec2[],
+  settings: WallSettings,
+  base: Pick<Room, "id" | "name" | "floorMaterial">,
+): Command {
+  const next = roomFromPolygon(polygon, settings, base);
   return {
     label: `Draw room (${next.walls.length} walls)`,
-    do: (scene) => withRoom(scene, next),
-    undo: (scene) =>
-      withRoom(scene, { walls: [], polygon: [], floorMaterial: next.floorMaterial }),
+    do: (scene) => withRoom(scene, index, next),
+    undo: (scene) => withRoom(scene, index, { ...base, walls: [], polygon: [] }),
   };
 }
 
@@ -73,11 +88,11 @@ export function closeRoom(polygon: readonly Vec2[], settings: WallSettings): Com
 function roomWithOpenings(
   polygon: readonly Vec2[],
   settings: WallSettings,
-  floorMaterial: string,
+  base: Pick<Room, "id" | "name" | "floorMaterial">,
   openings: readonly (readonly Opening[])[],
   clampToFit: boolean,
 ): Room {
-  const room = roomFromPolygon(polygon, settings, floorMaterial);
+  const room = roomFromPolygon(polygon, settings, base);
   return {
     ...room,
     walls: room.walls.map((wall, i) => {
@@ -98,6 +113,7 @@ function roomWithOpenings(
  * restores their exact positions instead of the clamped ones.
  */
 export function moveVertex(
+  roomIndex: number,
   index: number,
   from: Vec2,
   to: Vec2,
@@ -109,17 +125,14 @@ export function moveVertex(
     openings: readonly (readonly Opening[])[],
     clampToFit: boolean,
   ): Scene => {
-    const polygon = scene.room.polygon.map((p, i) => (i === index ? position : p));
-    const settings = wallSettingsOf(scene, { height: 2.5, thickness: 0.2 });
+    const room = roomAt(scene, roomIndex);
+    if (!room) return scene;
+    const polygon = room.polygon.map((p, i) => (i === index ? position : p));
+    const settings = wallSettingsOf(scene, roomIndex, { height: 2.5, thickness: 0.2 });
     return withRoom(
       scene,
-      roomWithOpenings(
-        polygon,
-        settings,
-        scene.room.floorMaterial,
-        openings,
-        clampToFit,
-      ),
+      roomIndex,
+      roomWithOpenings(polygon, settings, room, openings, clampToFit),
     );
   };
   return {
@@ -129,6 +142,28 @@ export function moveVertex(
   };
 }
 
+function rebuild(
+  scene: Scene,
+  roomIndex: number,
+  polygon: readonly Vec2[],
+  openings: readonly (readonly Opening[])[],
+  clampToFit: boolean,
+): Scene {
+  const room = roomAt(scene, roomIndex);
+  if (!room) return scene;
+  return withRoom(
+    scene,
+    roomIndex,
+    roomWithOpenings(
+      polygon,
+      wallSettingsOf(scene, roomIndex, { height: 2.5, thickness: 0.2 }),
+      room,
+      openings,
+      clampToFit,
+    ),
+  );
+}
+
 /**
  * Splits wall `index` at `splitAt` metres along it.
  *
@@ -136,6 +171,7 @@ export function moveVertex(
  * dropped rather than cut in two - half a door is not a door.
  */
 export function addVertex(
+  roomIndex: number,
   index: number,
   point: Vec2,
   splitAt: number,
@@ -162,28 +198,8 @@ export function addVertex(
 
   return {
     label: "Add corner",
-    do: (scene) =>
-      withRoom(
-        scene,
-        roomWithOpenings(
-          nextPolygon,
-          wallSettingsOf(scene, { height: 2.5, thickness: 0.2 }),
-          scene.room.floorMaterial,
-          nextOpenings,
-          true,
-        ),
-      ),
-    undo: (scene) =>
-      withRoom(
-        scene,
-        roomWithOpenings(
-          fromPolygon,
-          wallSettingsOf(scene, { height: 2.5, thickness: 0.2 }),
-          scene.room.floorMaterial,
-          fromOpenings,
-          false,
-        ),
-      ),
+    do: (scene) => rebuild(scene, roomIndex, nextPolygon, nextOpenings, true),
+    undo: (scene) => rebuild(scene, roomIndex, fromPolygon, fromOpenings, false),
   };
 }
 
@@ -195,6 +211,7 @@ export function addVertex(
  * the user never chose. Undo restores them exactly.
  */
 export function removeVertex(
+  roomIndex: number,
   index: number,
   fromPolygon: readonly Vec2[],
   fromOpenings: readonly (readonly Opening[])[],
@@ -212,36 +229,20 @@ export function removeVertex(
 
   return {
     label: "Remove corner",
-    do: (scene) =>
-      withRoom(
-        scene,
-        roomWithOpenings(
-          nextPolygon,
-          wallSettingsOf(scene, { height: 2.5, thickness: 0.2 }),
-          scene.room.floorMaterial,
-          nextOpenings,
-          true,
-        ),
-      ),
-    undo: (scene) =>
-      withRoom(
-        scene,
-        roomWithOpenings(
-          fromPolygon,
-          wallSettingsOf(scene, { height: 2.5, thickness: 0.2 }),
-          scene.room.floorMaterial,
-          fromOpenings,
-          false,
-        ),
-      ),
+    do: (scene) => rebuild(scene, roomIndex, nextPolygon, nextOpenings, true),
+    undo: (scene) => rebuild(scene, roomIndex, fromPolygon, fromOpenings, false),
   };
 }
 
-export function setFloorMaterial(from: string, to: string): Command {
-  const apply = (scene: Scene, floorMaterial: string): Scene => ({
-    ...scene,
-    room: { ...scene.room, floorMaterial },
-  });
+export function setFloorMaterial(
+  roomIndex: number,
+  from: string,
+  to: string,
+): Command {
+  const apply = (scene: Scene, floorMaterial: string): Scene => {
+    const room = roomAt(scene, roomIndex);
+    return room ? withRoom(scene, roomIndex, { ...room, floorMaterial }) : scene;
+  };
   return {
     label: "Change floor",
     do: (scene) => apply(scene, to),
@@ -249,12 +250,19 @@ export function setFloorMaterial(from: string, to: string): Command {
   };
 }
 
-export function setWallSettings(prev: WallSettings, next: WallSettings): Command {
-  const apply = (scene: Scene, settings: WallSettings): Scene =>
-    withRoom(scene, {
-      ...scene.room,
-      walls: scene.room.walls.map((wall) => ({ ...wall, ...settings })),
+export function setWallSettings(
+  roomIndex: number,
+  prev: WallSettings,
+  next: WallSettings,
+): Command {
+  const apply = (scene: Scene, settings: WallSettings): Scene => {
+    const room = roomAt(scene, roomIndex);
+    if (!room) return scene;
+    return withRoom(scene, roomIndex, {
+      ...room,
+      walls: room.walls.map((wall) => ({ ...wall, ...settings })),
     });
+  };
   const changed = prev.height !== next.height ? "height" : "thickness";
   return {
     label: `Set wall ${changed}`,
@@ -373,26 +381,34 @@ export function rotatePlacement(id: string, from: number, to: number): Command {
   };
 }
 
-function mapWall(scene: Scene, index: number, fn: (wall: Wall) => Wall): Scene {
-  return {
-    ...scene,
-    room: {
-      ...scene.room,
-      walls: scene.room.walls.map((wall, i) => (i === index ? fn(wall) : wall)),
-    },
-  };
+function mapWall(
+  scene: Scene,
+  roomIndex: number,
+  index: number,
+  fn: (wall: Wall) => Wall,
+): Scene {
+  const room = roomAt(scene, roomIndex);
+  if (!room) return scene;
+  return withRoom(scene, roomIndex, {
+    ...room,
+    walls: room.walls.map((wall, i) => (i === index ? fn(wall) : wall)),
+  });
 }
 
-export function addOpening(index: number, opening: Opening): Command {
+export function addOpening(
+  roomIndex: number,
+  index: number,
+  opening: Opening,
+): Command {
   return {
     label: `Add ${opening.type}`,
     do: (scene) =>
-      mapWall(scene, index, (wall) => ({
+      mapWall(scene, roomIndex, index, (wall) => ({
         ...wall,
         openings: [...wall.openings, opening],
       })),
     undo: (scene) =>
-      mapWall(scene, index, (wall) => ({
+      mapWall(scene, roomIndex, index, (wall) => ({
         ...wall,
         openings: wall.openings.filter((o) => o.id !== opening.id),
       })),
@@ -400,6 +416,7 @@ export function addOpening(index: number, opening: Opening): Command {
 }
 
 export function removeOpening(
+  roomIndex: number,
   index: number,
   opening: Opening,
   position: number,
@@ -407,13 +424,13 @@ export function removeOpening(
   return {
     label: `Delete ${opening.type}`,
     do: (scene) =>
-      mapWall(scene, index, (wall) => ({
+      mapWall(scene, roomIndex, index, (wall) => ({
         ...wall,
         openings: wall.openings.filter((o) => o.id !== opening.id),
       })),
     // Restores at its original position so undo does not reorder.
     undo: (scene) =>
-      mapWall(scene, index, (wall) => {
+      mapWall(scene, roomIndex, index, (wall) => {
         const next = [...wall.openings];
         next.splice(Math.min(position, next.length), 0, opening);
         return { ...wall, openings: next };
@@ -422,13 +439,14 @@ export function removeOpening(
 }
 
 export function updateOpening(
+  roomIndex: number,
   index: number,
   from: Opening,
   to: Opening,
   field: string,
 ): Command {
   const apply = (scene: Scene, opening: Opening): Scene =>
-    mapWall(scene, index, (wall) => ({
+    mapWall(scene, roomIndex, index, (wall) => ({
       ...wall,
       openings: wall.openings.map((o) => (o.id === opening.id ? opening : o)),
     }));

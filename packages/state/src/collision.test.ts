@@ -11,6 +11,7 @@ const room: Room = roomFromPolygon(
     { x: 0, z: 5 },
   ],
   { height: 2.5, thickness: 0.2 },
+  { id: "r0", name: "Room 1", floorMaterial: "default" },
 );
 
 let counter = 0;
@@ -180,7 +181,7 @@ describe("room containment", () => {
   });
 
   it("skips containment when no room exists", () => {
-    const empty: Room = { walls: [], polygon: [], floorMaterial: "default" };
+    const empty: Room = { id: "r0", name: "Room 1", walls: [], polygon: [], floorMaterial: "default" };
     expect(findCollisions(empty, [place("desk", 0, 0)]).outOfRoom.size).toBe(0);
   });
 

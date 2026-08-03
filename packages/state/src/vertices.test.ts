@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEditorStore } from "./store";
+import { activeRoom, createEditorStore } from "./store";
 
 /** 6m x 4m room, walls indexed to match the polygon. */
 const square = [
@@ -18,8 +18,8 @@ function storeWithRoom() {
 
 type Store = ReturnType<typeof storeWithRoom>;
 
-const polygonOf = (s: Store) => s.getState().scene.room.polygon;
-const wallsOf = (s: Store) => s.getState().scene.room.walls;
+const polygonOf = (s: Store) => activeRoom(s.getState()).polygon;
+const wallsOf = (s: Store) => activeRoom(s.getState()).walls;
 const openingCount = (s: Store) =>
   wallsOf(s).reduce((sum, wall) => sum + wall.openings.length, 0);
 
