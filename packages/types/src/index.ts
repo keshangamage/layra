@@ -36,6 +36,8 @@ export interface Wall {
 }
 
 export interface Room {
+  id: string;
+  name: string;
   walls: Wall[];
   /** Centerline loop, normalized to CCW. Derived from walls, stored so the renderer and edit handles agree. */
   polygon: Vec2[];
@@ -75,19 +77,23 @@ export interface Placement {
   locked: boolean;
 }
 
-/** Bumped when the persisted shape changes; load validates against it. */
-export const SCENE_VERSION = 1;
+/** Bumped when the persisted shape changes; load migrates older files. */
+export const SCENE_VERSION = 2;
 
 export interface Scene {
   version: number;
-  room: Room;
+  rooms: Room[];
   placements: Placement[];
+}
+
+export function emptyRoom(id: string, name: string): Room {
+  return { id, name, walls: [], polygon: [], floorMaterial: "default" };
 }
 
 export function emptyScene(): Scene {
   return {
     version: SCENE_VERSION,
-    room: { walls: [], polygon: [], floorMaterial: "default" },
+    rooms: [emptyRoom("r0", "Room 1")],
     placements: [],
   };
 }

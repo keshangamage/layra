@@ -6,6 +6,7 @@ import {
   findCatalogItem,
   findCollisions,
   isBlocked,
+  activeRoom,
 } from "@layra/state";
 import type { Rect } from "@layra/geometry";
 import type { Placement } from "@layra/types";
@@ -86,7 +87,7 @@ export function Furniture() {
   // Subscribe to stable slices and merge here. livePlacements builds a fresh
   // object per call, so as a selector it makes getSnapshot loop forever.
   const stored = useEditor((state) => state.scene.placements);
-  const room = useEditor((state) => state.scene.room);
+  const room = useEditor((state) => activeRoom(state));
   const drag = useEditor((state) => state.placementDrag);
   const selectedId = useEditor((state) => state.selectedId);
   const groundAt = useGroundPointer();

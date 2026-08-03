@@ -1,6 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
   emptyScene,
+  type Room,
   type Opening,
   type OpeningType,
   type Placement,
@@ -60,6 +61,8 @@ export interface SnapSettings {
 
 export interface EditorState {
   scene: Scene;
+  /** Every room edit targets this one. */
+  activeRoomIndex: number;
   past: Command[];
   future: Command[];
   mode: Mode;
@@ -185,14 +188,19 @@ export const DEFAULT_WALLS: WallSettings = { height: 2.5, thickness: 0.2 };
 
 /** The polygon as currently displayed, including an in-progress drag. */
 export function livePolygon(state: EditorState): Vec2[] {
-  const { polygon } = state.scene.room;
+  const { polygon } = activeRoom(state);
   const drag = state.dragging;
   if (!drag) return polygon;
   return polygon.map((p, i) => (i === drag.index ? drag.position : p));
 }
 
+/** The room currently being edited. Never undefined: a scene always has one. */
+export function activeRoom(state: EditorState): Room {
+  return state.scene.rooms[state.activeRoomIndex] ?? state.scene.rooms[0]!;
+}
+
 export function currentWallSettings(state: EditorState): WallSettings {
-  return wallSettingsOf(state.scene, state.wallDefaults);
+  return wallSettingsOf(state.scene, state.activeRoomIndex, state.wallDefaults);
 }
 
 /**
@@ -225,6 +233,7 @@ export type EditorStore = StoreApi<EditorState>;
 export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
   return createStore<EditorState>()((set, get) => ({
     scene: emptyScene(),
+    activeRoomIndex: 0,
     past: [],
     future: [],
     mode: "draw",
@@ -355,8 +364,8 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const type = state.pendingOpening;
       if (!type) return false;
 
-      const station = nearestWallStation(state.scene.room.polygon, point);
-      const wall = station ? state.scene.room.walls[station.index] : undefined;
+      const station = nearestWallStation(activeRoom(state).polygon, point);
+      const wall = station ? activeRoom(state).walls[station.index] : undefined;
       if (!station || !wall) return false;
 
       const size = OPENING_DEFAULTS[type];
@@ -370,7 +379,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       );
 
       const opening: Opening = { id: crypto.randomUUID(), type, offset, ...size };
-      state.execute(addOpening(station.index, opening));
+      state.execute(addOpening(state.activeRoomIndex, station.index, opening));
       // Select it so the sliders act on what was just placed.
       set({
         pendingOpening: null,
@@ -381,12 +390,12 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     deleteOpening: (wallIndex, openingId) => {
       const state = get();
-      const wall = state.scene.room.walls[wallIndex];
+      const wall = activeRoom(state).walls[wallIndex];
       if (!wall) return;
       const position = wall.openings.findIndex((o) => o.id === openingId);
       const opening = wall.openings[position];
       if (!opening) return;
-      state.execute(removeOpening(wallIndex, opening, position));
+      state.execute(removeOpening(state.activeRoomIndex, wallIndex, opening, position));
       if (state.selectedOpening?.id === openingId) set({ selectedOpening: null });
     },
 
@@ -395,11 +404,11 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     beginOpeningDrag: (wallIndex, id, pointer) => {
       const state = get();
-      const wall = state.scene.room.walls[wallIndex];
+      const wall = activeRoom(state).walls[wallIndex];
       const opening = wall?.openings.find((o) => o.id === id);
       if (!wall || !opening) return;
 
-      const station = nearestWallStation(state.scene.room.polygon, pointer);
+      const station = nearestWallStation(activeRoom(state).polygon, pointer);
       if (!station || station.index !== wallIndex) return;
 
       set({
@@ -419,9 +428,9 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         const drag = state.openingDrag;
         if (!drag) return state;
 
-        const wall = state.scene.room.walls[drag.wallIndex];
+        const wall = activeRoom(state).walls[drag.wallIndex];
         const opening = wall?.openings.find((o) => o.id === drag.id);
-        const station = nearestWallStation(state.scene.room.polygon, pointer);
+        const station = nearestWallStation(activeRoom(state).polygon, pointer);
         if (!wall || !opening || !station) return state;
 
         // Project onto the opening's own wall, so it never jumps to another.
@@ -446,12 +455,13 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       set({ openingDrag: null });
       if (!drag) return;
 
-      const wall = state.scene.room.walls[drag.wallIndex];
+      const wall = activeRoom(state).walls[drag.wallIndex];
       const opening = wall?.openings.find((o) => o.id === drag.id);
       if (!opening || opening.offset === drag.offset) return;
 
       state.execute(
         updateOpening(
+          state.activeRoomIndex,
           drag.wallIndex,
           opening,
           { ...opening, offset: drag.offset },
@@ -467,7 +477,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const reference = state.selectedOpening;
       if (!reference) return;
 
-      const wall = state.scene.room.walls[reference.wallIndex];
+      const wall = activeRoom(state).walls[reference.wallIndex];
       const opening = wall?.openings.find((o) => o.id === reference.id);
       if (!wall || !opening) return;
 
@@ -480,7 +490,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
       // Key by field so dragging one slider merges but switching does not.
       const field = Object.keys(patch)[0] ?? "size";
-      state.execute(updateOpening(reference.wallIndex, opening, next, field));
+      state.execute(updateOpening(state.activeRoomIndex, reference.wallIndex, opening, next, field));
     },
 
     addDraftPoint: (point) => set((state) => ({ draft: [...state.draft, point] })),
@@ -492,7 +502,12 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     closeDraft: () => {
       const state = get();
       if (state.draft.length < 3 || selfIntersects(state.draft)) return false;
-      state.execute(closeRoom(state.draft, currentWallSettings(state)));
+      state.execute(closeRoom(
+          state.activeRoomIndex,
+          state.draft,
+          currentWallSettings(state),
+          activeRoom(state),
+        ));
       set({ draft: [], cursor: null, mode: "edit" });
       return true;
     },
@@ -503,7 +518,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     addVertexAt: (point) => {
       const state = get();
-      const { polygon, walls } = state.scene.room;
+      const { polygon, walls } = activeRoom(state);
       const station = nearestWallStation(polygon, point);
       if (!station) return false;
 
@@ -515,6 +530,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
       state.execute(
         addVertex(
+          state.activeRoomIndex,
           station.index,
           snapped,
           station.offset,
@@ -528,13 +544,18 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     deleteSelectedVertex: () => {
       const state = get();
       const index = state.selectedVertex;
-      const { polygon, walls } = state.scene.room;
+      const { polygon, walls } = activeRoom(state);
       if (index === null || index < 0 || index >= polygon.length) return false;
       // A room needs three corners.
       if (polygon.length <= 3) return false;
 
       state.execute(
-        removeVertex(index, polygon, walls.map((wall) => wall.openings)),
+        removeVertex(
+          state.activeRoomIndex,
+          index,
+          polygon,
+          walls.map((wall) => wall.openings),
+        ),
       );
       set({ selectedVertex: null });
       return true;
@@ -542,7 +563,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     beginDrag: (index) => {
       if (get().pendingFurniture) return;
-      const position = get().scene.room.polygon[index];
+      const position = activeRoom(get()).polygon[index];
       if (!position) return;
       set({ dragging: { index, position } });
     },
@@ -556,31 +577,32 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const state = get();
       const drag = state.dragging;
       if (!drag) return;
-      const from = state.scene.room.polygon[drag.index];
+      const from = activeRoom(state).polygon[drag.index];
       set({ dragging: null });
       // One history entry per gesture, and nothing at all if it didn't move.
       if (!from || (from.x === drag.position.x && from.z === drag.position.z)) return;
       state.execute(
         moveVertex(
+          state.activeRoomIndex,
           drag.index,
           from,
           drag.position,
-          state.scene.room.walls.map((wall) => wall.openings),
+          activeRoom(state).walls.map((wall) => wall.openings),
         ),
       );
     },
 
     applyFloorMaterial: (id) => {
       const state = get();
-      const current = state.scene.room.floorMaterial;
+      const current = activeRoom(state).floorMaterial;
       if (current === id) return;
-      state.execute(setFloorMaterial(current, id));
+      state.execute(setFloorMaterial(state.activeRoomIndex, current, id));
     },
 
     newScene: () => {
       const state = get();
       if (
-        state.scene.room.polygon.length === 0 &&
+        activeRoom(state).polygon.length === 0 &&
         state.scene.placements.length === 0
       ) {
         return;
@@ -593,11 +615,11 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const prev = currentWallSettings(state);
       const next = { ...prev, ...partial };
       if (prev.height === next.height && prev.thickness === next.thickness) return;
-      if (state.scene.room.walls.length === 0) {
+      if (activeRoom(state).walls.length === 0) {
         set({ wallDefaults: next });
         return;
       }
-      state.execute(setWallSettings(prev, next));
+      state.execute(setWallSettings(state.activeRoomIndex, prev, next));
     },
 
     selectedId: null,
@@ -621,10 +643,10 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
       const snapped = snapPoint(point, state.snap.grid);
       const mounted = item.wallMounted
-        ? mountToWall(state.scene.room, snapped, item)
+        ? mountToWall(activeRoom(state), snapped, item)
         : freeform
           ? null
-          : snapFloorToWall(state.scene.room, snapped, item);
+          : snapFloorToWall(activeRoom(state), snapped, item);
       const placement: Placement = {
         id: crypto.randomUUID(),
         catalogItemId,
@@ -671,7 +693,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       if (!item) return;
 
       // Drop it at the room's centre; there is no pointer position yet.
-      const centre = bounds(state.scene.room.polygon).center;
+      const centre = bounds(activeRoom(state).polygon).center;
       const placement: Placement = {
         id: crypto.randomUUID(),
         catalogItemId,
@@ -753,10 +775,10 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         if (item) {
           // Wall pieces always ride a wall; floor pieces only snap when near one.
           const mounted = item.wallMounted
-            ? mountToWall(state.scene.room, snapped, item)
+            ? mountToWall(activeRoom(state), snapped, item)
             : freeform
               ? null
-              : snapFloorToWall(state.scene.room, snapped, item);
+              : snapFloorToWall(activeRoom(state), snapped, item);
           if (mounted) {
             return {
               placementDrag: {
@@ -823,7 +845,8 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         selectedOpening: null,
         pendingOpening: null,
         measure: { from: null, to: null },
-        mode: next.room.polygon.length >= 3 ? "edit" : "draw",
+        activeRoomIndex: 0,
+        mode: (next.rooms[0]?.polygon.length ?? 0) >= 3 ? "edit" : "draw",
       })),
 
     replaceScene: (next) => {
@@ -842,7 +865,8 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         pendingFurniture: null,
         furnitureGhost: null,
         selectedOpening: null,
-        mode: next.room.polygon.length >= 3 ? "edit" : "draw",
+        activeRoomIndex: 0,
+        mode: (next.rooms[0]?.polygon.length ?? 0) >= 3 ? "edit" : "draw",
       });
     },
 

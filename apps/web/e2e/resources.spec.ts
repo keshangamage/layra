@@ -56,8 +56,8 @@ async function roomCentre(page: Page): Promise<{ x: number; y: number }> {
   const points = await page.evaluate(
     () =>
       (window as unknown as {
-        __layraStore: { getState(): { scene: { room: { polygon: { x: number; z: number }[] } } } };
-      }).__layraStore.getState().scene.room.polygon,
+        __layraStore: { getState(): { scene: { rooms: { polygon: { x: number; z: number }[] }[] } } };
+      }).__layraStore.getState().scene.rooms[0]!.polygon,
   );
   const xs = points.map((p) => p.x);
   const zs = points.map((p) => p.z);

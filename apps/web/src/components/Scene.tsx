@@ -6,7 +6,9 @@ import { Grid, OrbitControls } from "@react-three/drei";
 import { useShallow } from "zustand/react/shallow";
 import { Vector3 } from "three";
 import { bounds } from "@layra/geometry";
-import { currentWallSettings, livePolygon } from "@layra/state";
+import { currentWallSettings, livePolygon,
+  activeRoom,
+} from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 import { Walls } from "./Walls";
 import { Floor } from "./Floor";
@@ -23,11 +25,11 @@ import { MeasureTool } from "./MeasureTool";
 function Room() {
   // livePolygon builds a new array mid-drag, so compare by element identity.
   const polygon = useEditor(useShallow(livePolygon));
-  const walls = useEditor((state) => state.scene.room.walls);
+  const walls = useEditor((state) => activeRoom(state).walls);
   const openings = useMemo(() => walls.map((wall) => wall.openings), [walls]);
   const height = useEditor((state) => currentWallSettings(state).height);
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
-  const floorMaterial = useEditor((state) => state.scene.room.floorMaterial);
+  const floorMaterial = useEditor((state) => activeRoom(state).floorMaterial);
 
   if (polygon.length < 3) return null;
 
@@ -65,7 +67,7 @@ export default function Scene() {
   const [contextLost, setContextLost] = useState(false);
   const [canvasKey, setCanvasKey] = useState(0);
   const attempts = useRef(0);
-  const polygon = useEditor((state) => state.scene.room.polygon);
+  const polygon = useEditor((state) => activeRoom(state).polygon);
   const isDragging = useEditor(
     (state) =>
       state.dragging !== null ||

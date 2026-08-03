@@ -2,7 +2,9 @@
 
 import type { Opening, OpeningType } from "@layra/types";
 import { distance, formatLength } from "@layra/geometry";
-import { MIN_OPENING, type OpeningShape } from "@layra/state";
+import { MIN_OPENING, type OpeningShape,
+  activeRoom,
+} from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 
 interface SliderProps {
@@ -56,7 +58,7 @@ function Shape({ opening, wallLength, wallHeight }: {
 const TYPES: OpeningType[] = ["door", "window"];
 
 export function OpeningsPanel() {
-  const walls = useEditor((state) => state.scene.room.walls);
+  const walls = useEditor((state) => activeRoom(state).walls);
   const pending = useEditor((state) => state.pendingOpening);
   const selectedRef = useEditor((state) => state.selectedOpening);
 

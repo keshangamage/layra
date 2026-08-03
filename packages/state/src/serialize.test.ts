@@ -6,7 +6,7 @@ import { roomFromPolygon } from "./commands";
 function sceneWithRoom(): Scene {
   return {
     version: SCENE_VERSION,
-    room: roomFromPolygon(
+    rooms: [roomFromPolygon(
       [
         { x: 0, z: 0 },
         { x: 4, z: 0 },
@@ -14,7 +14,8 @@ function sceneWithRoom(): Scene {
         { x: 0, z: 3 },
       ],
       { height: 2.5, thickness: 0.2 },
-    ),
+      { id: "r0", name: "Room 1", floorMaterial: "default" },
+    )],
     placements: [],
   };
 }
@@ -38,7 +39,7 @@ describe("round trip", () => {
 
   it("preserves openings", () => {
     const scene = sceneWithRoom();
-    scene.room.walls[0]!.openings.push({
+    scene.rooms[0]!.walls[0]!.openings.push({
       id: "o1",
       type: "door",
       offset: 1.2,
@@ -100,21 +101,21 @@ describe("rejects bad input", () => {
   it("rejects a polygon point missing a coordinate", () => {
     const scene = sceneWithRoom();
     const broken = JSON.parse(serializeScene(scene)) as Record<string, unknown>;
-    (broken.room as Record<string, unknown>).polygon = [{ x: 1 }];
+    (broken.rooms as Record<string, unknown>[])[0]!.polygon = [{ x: 1 }];
     expect(parseScene(JSON.stringify(broken)).ok).toBe(false);
   });
 
   it("rejects NaN and Infinity coordinates", () => {
     // JSON.stringify turns these into null, which must not slip through.
     const scene = sceneWithRoom();
-    scene.room.polygon[0] = { x: NaN, z: Infinity };
+    scene.rooms[0]!.polygon[0] = { x: NaN, z: Infinity };
     expect(parseScene(serializeScene(scene)).ok).toBe(false);
   });
 
   it("rejects an unknown opening type", () => {
     const scene = sceneWithRoom();
     const broken = JSON.parse(serializeScene(scene)) as Record<string, unknown>;
-    const walls = (broken.room as Record<string, unknown>).walls as Record<
+    const walls = (broken.rooms as Record<string, unknown>[])[0]!.walls as Record<
       string,
       unknown
     >[];
@@ -142,5 +143,58 @@ describe("rejects bad input", () => {
       },
     ] as never;
     expect(parseScene(JSON.stringify(broken)).ok).toBe(false);
+  });
+});
+
+describe("migrating a version 1 file", () => {
+  /** v1 held a single `room` and no ids or names. */
+  function version1(): string {
+    const scene = sceneWithRoom();
+    const raw = JSON.parse(serializeScene(scene)) as Record<string, unknown>;
+    const rooms = raw.rooms as Record<string, unknown>[];
+    const room = { ...rooms[0]! };
+    delete room.id;
+    delete room.name;
+    return JSON.stringify({ version: 1, room, placements: raw.placements });
+  }
+
+  it("reads a v1 file", () => {
+    const result = parseScene(version1());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.scene.rooms).toHaveLength(1);
+  });
+
+  it("keeps the geometry intact", () => {
+    const parsed = parsedOrThrow(version1());
+    expect(parsed.rooms[0]?.walls).toHaveLength(4);
+    expect(parsed.rooms[0]?.polygon).toHaveLength(4);
+  });
+
+  it("synthesises an id and name", () => {
+    const parsed = parsedOrThrow(version1());
+    expect(parsed.rooms[0]?.id).toBe("r0");
+    expect(parsed.rooms[0]?.name).toBe("Room 1");
+  });
+
+  it("stamps the current version on the way out", () => {
+    expect(parsedOrThrow(version1()).version).toBe(SCENE_VERSION);
+  });
+
+  it("still rejects a version from the future", () => {
+    const result = parseScene(JSON.stringify({ ...emptyScene(), version: 99 }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("99");
+  });
+
+  it("rejects a scene with no rooms at all", () => {
+    expect(parseScene(JSON.stringify({ version: 2, rooms: [], placements: [] })).ok).toBe(
+      false,
+    );
+  });
+
+  it("round-trips several rooms", () => {
+    const scene = sceneWithRoom();
+    scene.rooms.push({ ...scene.rooms[0]!, id: "r1", name: "Room 2" });
+    expect(parsedOrThrow(serializeScene(scene)).rooms).toHaveLength(2);
   });
 });

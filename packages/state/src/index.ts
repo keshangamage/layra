@@ -52,6 +52,7 @@ export {
 export {
   DEFAULT_SNAP,
   DEFAULT_WALLS,
+  activeRoom,
   OPENING_DEFAULTS,
   createEditorStore,
   currentWallSettings,

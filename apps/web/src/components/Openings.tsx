@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { openingTransform } from "@layra/geometry";
 import type { Opening } from "@layra/types";
+import { activeRoom } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 import { useGroundPointer } from "./useGroundPointer";
 
@@ -17,7 +18,7 @@ interface Panel {
 }
 
 export function Openings() {
-  const walls = useEditor((state) => state.scene.room.walls);
+  const walls = useEditor((state) => activeRoom(state).walls);
   const drag = useEditor((state) => state.openingDrag);
   const selected = useEditor((state) => state.selectedOpening);
   const groundAt = useGroundPointer();

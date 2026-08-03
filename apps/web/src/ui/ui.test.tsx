@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { DEFAULT_SNAP, DEFAULT_WALLS, serializeScene } from "@layra/state";
+import {
+  DEFAULT_SNAP,
+  DEFAULT_WALLS,
+  activeRoom,
+  serializeScene,
+} from "@layra/state";
 import { emptyScene } from "@layra/types";
 import { editorStore } from "@/state/editor";
 import { Toolbar } from "./Toolbar";
@@ -107,7 +112,7 @@ describe("SettingsPanel", () => {
     expect(thickness.value).toBe("0.2");
 
     fireEvent.change(thickness, { target: { value: "0.35" } });
-    expect(editorStore.getState().scene.room.walls[0]?.thickness).toBeCloseTo(0.35);
+    expect(activeRoom(editorStore.getState()).walls[0]?.thickness).toBeCloseTo(0.35);
   });
 
   it("follows the scene back on undo", () => {
@@ -140,10 +145,10 @@ describe("KeyboardShortcuts", () => {
     drawRoom();
 
     press("z");
-    expect(editorStore.getState().scene.room.walls).toHaveLength(0);
+    expect(activeRoom(editorStore.getState()).walls).toHaveLength(0);
 
     press("z", { shiftKey: true });
-    expect(editorStore.getState().scene.room.walls).toHaveLength(4);
+    expect(activeRoom(editorStore.getState()).walls).toHaveLength(4);
   });
 
   it("redoes with Ctrl+Y", () => {
@@ -152,7 +157,7 @@ describe("KeyboardShortcuts", () => {
     press("z");
 
     press("y", { metaKey: false, ctrlKey: true });
-    expect(editorStore.getState().scene.room.walls).toHaveLength(4);
+    expect(activeRoom(editorStore.getState()).walls).toHaveLength(4);
   });
 
   it("ignores plain Z with no modifier", () => {
@@ -160,7 +165,7 @@ describe("KeyboardShortcuts", () => {
     drawRoom();
 
     press("z", { metaKey: false });
-    expect(editorStore.getState().scene.room.walls).toHaveLength(4);
+    expect(activeRoom(editorStore.getState()).walls).toHaveLength(4);
   });
 
   it("still undoes while a range slider holds focus", () => {
@@ -179,7 +184,7 @@ describe("KeyboardShortcuts", () => {
     thickness.focus();
 
     press("z");
-    expect(editorStore.getState().scene.room.walls[0]?.thickness).toBeCloseTo(0.2);
+    expect(activeRoom(editorStore.getState()).walls[0]?.thickness).toBeCloseTo(0.2);
   });
 
   it("leaves text entry alone", () => {
@@ -195,7 +200,7 @@ describe("KeyboardShortcuts", () => {
     text.focus();
     press("z");
 
-    expect(editorStore.getState().scene.room.walls).toHaveLength(4);
+    expect(activeRoom(editorStore.getState()).walls).toHaveLength(4);
   });
 });
 
@@ -213,13 +218,13 @@ describe("FileActions", () => {
     drawRoom();
     const saved = serializeScene(editorStore.getState().scene);
     run(() => editorStore.getState().undo());
-    expect(editorStore.getState().scene.room.walls).toHaveLength(0);
+    expect(activeRoom(editorStore.getState()).walls).toHaveLength(0);
 
     await pick(saved);
-    expect(editorStore.getState().scene.room.walls).toHaveLength(4);
+    expect(activeRoom(editorStore.getState()).walls).toHaveLength(4);
 
     run(() => editorStore.getState().undo());
-    expect(editorStore.getState().scene.room.walls).toHaveLength(0);
+    expect(activeRoom(editorStore.getState()).walls).toHaveLength(0);
   });
 
   it("shows an error and keeps the scene on a bad file", async () => {
@@ -231,9 +236,24 @@ describe("FileActions", () => {
     expect(editorStore.getState().scene).toBe(before);
   });
 
-  it("reports a version mismatch", async () => {
-    await pick(JSON.stringify({ version: 99, room: {}, placements: [] }));
-    expect(screen.getByText(/Unsupported scene version 99/)).toBeDefined();
+  it("refuses a file from a newer version", async () => {
+    await pick(JSON.stringify({ version: 99, rooms: [], placements: [] }));
+    expect(screen.getByText(/Scene version 99 is newer/)).toBeDefined();
+  });
+
+  it("opens a version 1 file", async () => {
+    // v1 held a single `room` with no id or name.
+    drawRoom();
+    const current = editorStore.getState().scene;
+    const legacy = JSON.stringify({
+      version: 1,
+      room: { ...current.rooms[0]!, id: undefined, name: undefined },
+      placements: [],
+    });
+    run(() => editorStore.getState().newScene());
+
+    await pick(legacy);
+    expect(activeRoom(editorStore.getState()).walls).toHaveLength(4);
   });
 });
 

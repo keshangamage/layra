@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FLOOR_MATERIALS, findFloorMaterial } from "./materials";
-import { createEditorStore } from "./store";
+import { activeRoom, createEditorStore } from "./store";
 import { sceneToSvg } from "./svg";
 
 function storeWithRoom() {
@@ -30,11 +30,11 @@ describe("floor materials", () => {
   it("changes the room's floor and is undoable", () => {
     const s = storeWithRoom();
     s.getState().applyFloorMaterial("oak");
-    expect(s.getState().scene.room.floorMaterial).toBe("oak");
+    expect(activeRoom(s.getState()).floorMaterial).toBe("oak");
     expect(s.getState().past.at(-1)?.label).toBe("Change floor");
 
     s.getState().undo();
-    expect(s.getState().scene.room.floorMaterial).toBe("default");
+    expect(activeRoom(s.getState()).floorMaterial).toBe("default");
   });
 
   it("records nothing when the finish is unchanged", () => {
@@ -54,7 +54,7 @@ describe("floor materials", () => {
     const s = storeWithRoom();
     s.getState().applyFloorMaterial("tile");
     s.getState().replaceScene(s.getState().scene);
-    expect(s.getState().scene.room.floorMaterial).toBe("tile");
+    expect(activeRoom(s.getState()).floorMaterial).toBe("tile");
   });
 });
 
@@ -65,7 +65,7 @@ describe("new scene", () => {
     s.getState().placeFurnitureAt({ x: 2, z: 1.5 }, true);
 
     s.getState().newScene();
-    expect(s.getState().scene.room.polygon).toHaveLength(0);
+    expect(activeRoom(s.getState()).polygon).toHaveLength(0);
     expect(s.getState().scene.placements).toHaveLength(0);
   });
 
@@ -73,7 +73,7 @@ describe("new scene", () => {
     const s = storeWithRoom();
     s.getState().newScene();
     s.getState().undo();
-    expect(s.getState().scene.room.polygon).toHaveLength(4);
+    expect(activeRoom(s.getState()).polygon).toHaveLength(4);
   });
 
   it("returns to draw mode", () => {

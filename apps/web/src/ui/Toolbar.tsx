@@ -1,13 +1,14 @@
 "use client";
 
 import type { Mode } from "@layra/state";
+import { activeRoom } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 import { FileActions } from "./FileActions";
 
 export function Toolbar() {
   const mode = useEditor((state) => state.mode);
   const draftCount = useEditor((state) => state.draft.length);
-  const hasRoom = useEditor((state) => state.scene.room.polygon.length >= 3);
+  const hasRoom = useEditor((state) => activeRoom(state).polygon.length >= 3);
 
   const hint =
     mode === "draw"

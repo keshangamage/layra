@@ -6,7 +6,7 @@ import { roomFromPolygon } from "./commands";
 function sceneWithRoom(placements: Placement[] = []): Scene {
   return {
     version: SCENE_VERSION,
-    room: roomFromPolygon(
+    rooms: [roomFromPolygon(
       [
         { x: 0, z: 0 },
         { x: 4, z: 0 },
@@ -14,7 +14,8 @@ function sceneWithRoom(placements: Placement[] = []): Scene {
         { x: 0, z: 3 },
       ],
       { height: 2.5, thickness: 0.2 },
-    ),
+      { id: "r0", name: "Room 1", floorMaterial: "default" },
+    )],
     placements,
   };
 }
@@ -142,7 +143,7 @@ describe("escaping", () => {
 describe("openings", () => {
   function sceneWithDoor(type: "door" | "window" = "door"): Scene {
     const scene = sceneWithRoom();
-    scene.room.walls[0]!.openings.push({
+    scene.rooms[0]!.walls[0]!.openings.push({
       id: "o1",
       type,
       offset: 1.5,

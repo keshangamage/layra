@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Vec2 } from "@layra/types";
 import {
+  activeRoom,
   createEditorStore,
   currentWallSettings,
   historyLabels,
@@ -25,8 +26,8 @@ describe("draft lifecycle", () => {
   it("closes a valid draft into a room and switches to edit", () => {
     const store = storeWithRoom();
     const state = store.getState();
-    expect(state.scene.room.walls).toHaveLength(4);
-    expect(state.scene.room.polygon).toHaveLength(4);
+    expect(state.scene.rooms[0]!.walls).toHaveLength(4);
+    expect(state.scene.rooms[0]!.polygon).toHaveLength(4);
     expect(state.draft).toEqual([]);
     expect(state.mode).toBe("edit");
   });
@@ -36,7 +37,7 @@ describe("draft lifecycle", () => {
     store.getState().addDraftPoint({ x: 0, z: 0 });
     store.getState().addDraftPoint({ x: 1, z: 0 });
     expect(store.getState().closeDraft()).toBe(false);
-    expect(store.getState().scene.room.walls).toHaveLength(0);
+    expect(activeRoom(store.getState()).walls).toHaveLength(0);
     expect(store.getState().past).toHaveLength(0);
   });
 
@@ -51,7 +52,7 @@ describe("draft lifecycle", () => {
       store.getState().addDraftPoint(point);
     }
     expect(store.getState().closeDraft()).toBe(false);
-    expect(store.getState().scene.room.walls).toHaveLength(0);
+    expect(activeRoom(store.getState()).walls).toHaveLength(0);
   });
 
   it("clears the draft on cancel", () => {
@@ -77,7 +78,7 @@ describe("undo / redo", () => {
     const afterDraw = store.getState().scene;
 
     store.getState().undo();
-    expect(store.getState().scene.room.walls).toHaveLength(0);
+    expect(activeRoom(store.getState()).walls).toHaveLength(0);
 
     store.getState().redo();
     expect(store.getState().scene).toEqual(afterDraw);
@@ -134,7 +135,7 @@ describe("vertex dragging", () => {
 
     expect(livePolygon(store.getState())[1]).toEqual({ x: 6, z: 0 });
     // Scene is untouched until the gesture ends.
-    expect(store.getState().scene.room.polygon[1]).toEqual({ x: 4, z: 0 });
+    expect(activeRoom(store.getState()).polygon[1]).toEqual({ x: 4, z: 0 });
     expect(store.getState().past).toHaveLength(1);
   });
 
@@ -146,7 +147,7 @@ describe("vertex dragging", () => {
 
     expect(store.getState().past).toHaveLength(2);
     expect(store.getState().past.at(-1)?.label).toBe("Move vertex 2");
-    expect(store.getState().scene.room.polygon[1]).toEqual({ x: 6, z: 0 });
+    expect(activeRoom(store.getState()).polygon[1]).toEqual({ x: 6, z: 0 });
     expect(store.getState().dragging).toBeNull();
   });
 
@@ -163,7 +164,7 @@ describe("vertex dragging", () => {
     store.getState().updateDrag({ x: 6, z: 0 });
     store.getState().endDrag();
     store.getState().undo();
-    expect(store.getState().scene.room.polygon[1]).toEqual({ x: 4, z: 0 });
+    expect(activeRoom(store.getState()).polygon[1]).toEqual({ x: 4, z: 0 });
   });
 
   it("ignores drags on a missing vertex", () => {
@@ -185,13 +186,13 @@ describe("wall settings", () => {
     const store = storeWithRoom();
     store.getState().applyWallSettings({ thickness: 0.4 });
 
-    for (const wall of store.getState().scene.room.walls) {
+    for (const wall of activeRoom(store.getState()).walls) {
       expect(wall.thickness).toBeCloseTo(0.4);
     }
     expect(store.getState().past.at(-1)?.label).toBe("Set wall thickness");
 
     store.getState().undo();
-    for (const wall of store.getState().scene.room.walls) {
+    for (const wall of activeRoom(store.getState()).walls) {
       expect(wall.thickness).toBeCloseTo(0.2);
     }
   });
@@ -207,7 +208,7 @@ describe("wall settings", () => {
     store.getState().applyWallSettings({ height: 3 });
     for (const point of square) store.getState().addDraftPoint(point);
     store.getState().closeDraft();
-    expect(store.getState().scene.room.walls[0]?.height).toBeCloseTo(3);
+    expect(activeRoom(store.getState()).walls[0]?.height).toBeCloseTo(3);
   });
 });
 
@@ -215,10 +216,13 @@ describe("replaceScene", () => {
   it("is undoable", () => {
     const store = storeWithRoom();
     const original = store.getState().scene;
-    const loaded = { ...original, room: { ...original.room, floorMaterial: "oak" } };
+    const loaded = {
+      ...original,
+      rooms: [{ ...original.rooms[0]!, floorMaterial: "oak" }],
+    };
 
     store.getState().replaceScene(loaded);
-    expect(store.getState().scene.room.floorMaterial).toBe("oak");
+    expect(activeRoom(store.getState()).floorMaterial).toBe("oak");
 
     store.getState().undo();
     expect(store.getState().scene).toEqual(original);
@@ -233,7 +237,7 @@ describe("command merging", () => {
     }
     // Draw room, plus one merged thickness entry.
     expect(store.getState().past).toHaveLength(2);
-    expect(store.getState().scene.room.walls[0]?.thickness).toBeCloseTo(0.4);
+    expect(activeRoom(store.getState()).walls[0]?.thickness).toBeCloseTo(0.4);
   });
 
   it("undoes the whole run at once", () => {
@@ -242,7 +246,7 @@ describe("command merging", () => {
       store.getState().applyWallSettings({ thickness });
     }
     store.getState().undo();
-    expect(store.getState().scene.room.walls[0]?.thickness).toBeCloseTo(0.2);
+    expect(activeRoom(store.getState()).walls[0]?.thickness).toBeCloseTo(0.2);
   });
 
   it("does not merge across different properties", () => {

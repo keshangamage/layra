@@ -1,6 +1,8 @@
 "use client";
 
-import { findCatalogItem, findCollisions, isBlocked } from "@layra/state";
+import { findCatalogItem, findCollisions, isBlocked,
+  activeRoom,
+} from "@layra/state";
 import { formatLength } from "@layra/geometry";
 import { useMemo } from "react";
 import { editor, useEditor } from "@/state/editor";
@@ -24,7 +26,7 @@ function Row({ label, value }: { label: string; value: string }) {
 export function SelectionPanel() {
   const placements = useEditor((state) => state.scene.placements);
   const selectedId = useEditor((state) => state.selectedId);
-  const room = useEditor((state) => state.scene.room);
+  const room = useEditor((state) => activeRoom(state));
 
   const selected = placements.find((p) => p.id === selectedId);
   const item = selected ? findCatalogItem(selected.catalogItemId) : undefined;
