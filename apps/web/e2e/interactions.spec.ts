@@ -251,3 +251,45 @@ test("a room never drops below three corners", async ({ page }) => {
   }
   expect(await polygon(page)).toHaveLength(3);
 });
+
+test("view buttons move the camera", async ({ page }) => {
+  await drawRoom(page);
+
+  const cameraY = () =>
+    page.evaluate(() => {
+      const p = (window as unknown as {
+        __layraProject: (x: number, z: number) => { x: number; y: number };
+      }).__layraProject(0, 0);
+      return p;
+    });
+
+  const before = await cameraY();
+  await page.getByRole("button", { name: "Plan" }).click();
+  await page.waitForTimeout(300);
+  const after = await cameraY();
+
+  // Looking straight down projects the origin somewhere different.
+  expect(after).not.toEqual(before);
+});
+
+test("fit frames a room drawn off to one side", async ({ page }) => {
+  await drawRoom(page);
+
+  // Push a corner far out so the room no longer fits the default framing.
+  const corner = await cornerOnScreen(page, 2);
+  await drag(page, corner, { x: corner.x + 200, y: corner.y + 80 });
+
+  await page.getByRole("button", { name: "Fit" }).click();
+  await page.waitForTimeout(400);
+
+  // Every corner must land inside the canvas after fitting.
+  const box = (await page.locator("canvas").boundingBox())!;
+  const points = await polygon(page);
+  for (let i = 0; i < points.length; i++) {
+    const screen = await cornerOnScreen(page, i);
+    expect(screen.x).toBeGreaterThanOrEqual(box.x - 1);
+    expect(screen.x).toBeLessThanOrEqual(box.x + box.width + 1);
+    expect(screen.y).toBeGreaterThanOrEqual(box.y - 1);
+    expect(screen.y).toBeLessThanOrEqual(box.y + box.height + 1);
+  }
+});
