@@ -8,6 +8,7 @@ import { editor, useEditor } from "@/state/editor";
 
 export function CatalogPanel() {
   const hasRoom = useEditor((state) => activeRoom(state).polygon.length >= 3);
+  const locked = useEditor((state) => activeRoom(state).locked === true);
   const rooms = useEditor((state) => state.scene.rooms);
   const placements = useEditor((state) => state.scene.placements);
 
@@ -40,6 +41,7 @@ export function CatalogPanel() {
             <li key={item.id}>
               <button
                 type="button"
+                disabled={locked}
                 onClick={() =>
                   editor().armFurniture(pending === item.id ? null : item.id)
                 }
@@ -47,7 +49,7 @@ export function CatalogPanel() {
                   pending === item.id
                     ? "bg-sky-600 text-white"
                     : "text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
-                }`}
+                } disabled:opacity-40`}
               >
                 <span>{item.name}</span>
                 <span className="font-mono text-[10px] text-zinc-500">
@@ -61,7 +63,9 @@ export function CatalogPanel() {
 
       {hasRoom && (
         <p className="mt-2 text-[11px] text-zinc-600">
-          {pending
+          {locked
+            ? "Unlock the room to edit its furniture."
+            : pending
             ? "Click to place - snaps to walls, hold Alt for any angle."
             : "Pick an item, then click where it goes."}
         </p>

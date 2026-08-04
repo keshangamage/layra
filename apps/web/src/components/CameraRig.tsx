@@ -25,6 +25,8 @@ export function CameraRig() {
   const polygon = useEditor((state) => activeRoom(state).polygon);
   const rooms = useEditor((state) => state.scene.rooms);
   const showOtherRooms = useEditor((state) => state.showOtherRooms);
+  const hiddenRoomIds = useEditor((state) => state.hiddenRoomIds);
+  const activeRoomIndex = useEditor((state) => state.activeRoomIndex);
   const camera = useThree((state) => state.camera);
   const controls = useThree((state) => state.controls) as Controls | null;
   const size = useThree((state) => state.size);
@@ -34,7 +36,9 @@ export function CameraRig() {
 
     const points =
       view.kind === "fit" && showOtherRooms
-        ? rooms.flatMap((room) => room.polygon)
+        ? rooms
+            .filter((room, index) => index === activeRoomIndex || !hiddenRoomIds.has(room.id))
+            .flatMap((room) => room.polygon)
         : polygon;
     const extent = bounds(points);
     // An empty scene still needs something to frame.
@@ -56,7 +60,7 @@ export function CameraRig() {
     camera.updateProjectionMatrix();
     controls.update();
     // Keyed on the nonce, so asking for the same view twice still fires.
-  }, [view, controls, camera, polygon, rooms, showOtherRooms, size]);
+  }, [view, controls, camera, polygon, rooms, showOtherRooms, hiddenRoomIds, activeRoomIndex, size]);
 
   return null;
 }

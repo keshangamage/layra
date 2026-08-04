@@ -12,9 +12,10 @@ interface SliderProps {
   value: number;
   max: number;
   field: keyof OpeningShape;
+  disabled?: boolean;
 }
 
-function Slider({ label, value, max, field }: SliderProps) {
+function Slider({ label, value, max, field, disabled }: SliderProps) {
   return (
     <label className="block">
       <span className="flex items-baseline justify-between text-[11px] text-zinc-400">
@@ -27,29 +28,31 @@ function Slider({ label, value, max, field }: SliderProps) {
         max={Math.max(max, 0)}
         step={0.05}
         value={value}
+        disabled={disabled}
         onChange={(event) =>
           editor().updateSelectedOpening({ [field]: Number(event.target.value) })
         }
-        className="mt-1 w-full accent-sky-500"
+        className="mt-1 w-full accent-sky-500 disabled:opacity-40"
       />
     </label>
   );
 }
 
-function Shape({ opening, wallLength, wallHeight }: {
+function Shape({ opening, wallLength, wallHeight, disabled }: {
   opening: Opening;
   wallLength: number;
   wallHeight: number;
+  disabled: boolean;
 }) {
   return (
     <div className="mt-3 space-y-2 rounded bg-zinc-900 p-2">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
         Selected {opening.type}
       </p>
-      <Slider label="Position" value={opening.offset} max={wallLength - opening.width} field="offset" />
-      <Slider label="Width" value={opening.width} max={wallLength} field="width" />
-      <Slider label="Height" value={opening.height} max={wallHeight - opening.sillHeight} field="height" />
-      <Slider label="Sill" value={opening.sillHeight} max={wallHeight - opening.height} field="sillHeight" />
+      <Slider label="Position" value={opening.offset} max={wallLength - opening.width} field="offset" disabled={disabled} />
+      <Slider label="Width" value={opening.width} max={wallLength} field="width" disabled={disabled} />
+      <Slider label="Height" value={opening.height} max={wallHeight - opening.sillHeight} field="height" disabled={disabled} />
+      <Slider label="Sill" value={opening.sillHeight} max={wallHeight - opening.height} field="sillHeight" disabled={disabled} />
       <p className="text-[10px] text-zinc-600">Minimum {MIN_OPENING} m.</p>
     </div>
   );
@@ -61,6 +64,7 @@ export function OpeningsPanel() {
   const walls = useEditor((state) => activeRoom(state).walls);
   const pending = useEditor((state) => state.pendingOpening);
   const selectedRef = useEditor((state) => state.selectedOpening);
+  const locked = useEditor((state) => activeRoom(state).locked === true);
 
   const selectedWall = selectedRef ? walls[selectedRef.wallIndex] : undefined;
   const selected = selectedWall?.openings.find((o) => o.id === selectedRef?.id);
@@ -82,6 +86,7 @@ export function OpeningsPanel() {
               <button
                 key={type}
                 type="button"
+                disabled={locked}
                 onClick={() => editor().armOpening(pending === type ? null : type)}
                 className={`flex-1 rounded px-2 py-1 text-xs font-medium capitalize transition-colors ${
                   pending === type
@@ -127,7 +132,8 @@ export function OpeningsPanel() {
                           event.stopPropagation();
                           editor().deleteOpening(index, opening.id);
                         }}
-                        className="text-zinc-500 hover:text-red-400"
+                        disabled={locked}
+                        className="text-zinc-500 hover:text-red-400 disabled:opacity-30"
                         aria-label={`Delete ${opening.type} on wall ${index + 1}`}
                       >
                         ×
@@ -144,6 +150,7 @@ export function OpeningsPanel() {
               opening={selected}
               wallLength={distance(selectedWall.start, selectedWall.end)}
               wallHeight={selectedWall.height}
+              disabled={locked}
             />
           )}
         </>

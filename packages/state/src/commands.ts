@@ -34,7 +34,7 @@ export interface WallSettings {
 export function roomFromPolygon(
   polygon: readonly Vec2[],
   settings: WallSettings,
-  base: Pick<Room, "id" | "name" | "floorMaterial">,
+  base: Pick<Room, "id" | "name" | "floorMaterial" | "locked">,
 ): Room {
   const normalized = ensureCCW(polygon);
   const walls: Wall[] = normalized.map((start, i) => ({
@@ -45,7 +45,7 @@ export function roomFromPolygon(
     thickness: settings.thickness,
     openings: [],
   }));
-  return { ...base, walls, polygon: normalized };
+  return { ...base, locked: base.locked === true, walls, polygon: normalized };
 }
 
 /** Height and thickness of the current room, or the fallback when there is none. */
@@ -74,7 +74,7 @@ export function closeRoom(
   index: number,
   polygon: readonly Vec2[],
   settings: WallSettings,
-  base: Pick<Room, "id" | "name" | "floorMaterial">,
+  base: Pick<Room, "id" | "name" | "floorMaterial" | "locked">,
 ): Command {
   const next = roomFromPolygon(polygon, settings, base);
   return {
@@ -88,7 +88,7 @@ export function closeRoom(
 function roomWithOpenings(
   polygon: readonly Vec2[],
   settings: WallSettings,
-  base: Pick<Room, "id" | "name" | "floorMaterial">,
+  base: Pick<Room, "id" | "name" | "floorMaterial" | "locked">,
   openings: readonly (readonly Opening[])[],
   clampToFit: boolean,
 ): Room {
@@ -421,6 +421,18 @@ export function renameRoom(index: number, from: string, to: string): Command {
   return {
     label: "Rename room",
     mergeKey: `rename-${index}`,
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
+export function setRoomLock(index: number, from: boolean, to: boolean): Command {
+  const apply = (scene: Scene, locked: boolean): Scene => ({
+    ...scene,
+    rooms: scene.rooms.map((room, i) => (i === index ? { ...room, locked } : room)),
+  });
+  return {
+    label: to ? "Lock room" : "Unlock room",
     do: (scene) => apply(scene, to),
     undo: (scene) => apply(scene, from),
   };

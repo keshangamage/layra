@@ -38,6 +38,8 @@ export interface Wall {
 export interface Room {
   id: string;
   name: string;
+  /** Prevents edits while keeping the room visible. */
+  locked?: boolean;
   walls: Wall[];
   /** Centerline loop, normalized to CCW. Derived from walls, stored so the renderer and edit handles agree. */
   polygon: Vec2[];
@@ -87,7 +89,7 @@ export interface Scene {
 }
 
 export function emptyRoom(id: string, name: string): Room {
-  return { id, name, walls: [], polygon: [], floorMaterial: "default" };
+  return { id, name, locked: false, walls: [], polygon: [], floorMaterial: "default" };
 }
 
 export function emptyScene(): Scene {

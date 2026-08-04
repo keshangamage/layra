@@ -104,6 +104,7 @@ describe("editing targets the active room", () => {
     expect(activeRoom(s.getState()).name).toBe("Room 2");
     s.getState().setActiveRoom(0);
     expect(activeRoom(s.getState()).name).toBe("Room 1");
+    expect(s.getState().view?.kind).toBe("fit");
   });
 });
 
@@ -318,6 +319,58 @@ describe("rotating a room", () => {
 
     s.getState().redo();
     expect(s.getState().past.at(-1)?.label).toBe("Rotate Room 1");
+  });
+});
+
+describe("locking rooms", () => {
+  it("locks the active room and makes the action undoable", () => {
+    const s = storeWithRoom();
+    s.getState().toggleRoomLock();
+
+    expect(rooms(s)[0]?.locked).toBe(true);
+    expect(s.getState().past.at(-1)?.label).toBe("Lock room");
+
+    s.getState().undo();
+    expect(rooms(s)[0]?.locked).toBe(false);
+  });
+
+  it("blocks geometry, furniture, and property edits while locked", () => {
+    const s = storeWithRoom();
+    const before = structuredClone(s.getState().scene);
+    s.getState().toggleRoomLock();
+
+    s.getState().moveActiveRoom(1, 0);
+    s.getState().rotateActiveRoom(Math.PI / 2);
+    s.getState().applyWallSettings({ thickness: 0.4 });
+    s.getState().armFurniture("desk");
+    expect(s.getState().placeFurnitureAt({ x: 2, z: 1.5 }, true)).toBe(false);
+
+    expect(s.getState().scene.rooms[0]?.polygon).toEqual(before.rooms[0]?.polygon);
+    expect(s.getState().scene.placements).toEqual(before.placements);
+  });
+});
+
+describe("room visibility", () => {
+  it("hides and shows non-active rooms without changing history", () => {
+    const s = storeWithRoom();
+    s.getState().addRoom();
+    const id = rooms(s)[0]!.id;
+    const before = s.getState().past.length;
+
+    s.getState().toggleRoomVisibility(id);
+    expect(s.getState().hiddenRoomIds.has(id)).toBe(true);
+    expect(s.getState().past).toHaveLength(before);
+
+    s.getState().toggleRoomVisibility(id);
+    expect(s.getState().hiddenRoomIds.has(id)).toBe(false);
+  });
+
+  it("clears hidden rooms when loading a scene", () => {
+    const s = storeWithRoom();
+    const id = rooms(s)[0]!.id;
+    s.getState().toggleRoomVisibility(id);
+    s.getState().resetScene(s.getState().scene);
+    expect(s.getState().hiddenRoomIds.size).toBe(0);
   });
 });
 

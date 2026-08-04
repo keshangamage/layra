@@ -92,6 +92,7 @@ function OtherRooms() {
   const showOtherRooms = useEditor((state) => state.showOtherRooms);
   const rooms = useEditor((state) => state.scene.rooms);
   const activeIndex = useEditor((state) => state.activeRoomIndex);
+  const hiddenRoomIds = useEditor((state) => state.hiddenRoomIds);
 
   if (!showOtherRooms) return null;
 
@@ -99,6 +100,7 @@ function OtherRooms() {
     <group>
       {rooms.map((room, index) => {
         if (index === activeIndex || room.polygon.length < 3) return null;
+        if (hiddenRoomIds.has(room.id)) return null;
         const height = room.walls[0]?.height ?? 2.5;
         const thickness = room.walls[0]?.thickness ?? 0.2;
         return (

@@ -111,6 +111,7 @@ function room(value: unknown, fallbackIndex: number): Room | null {
     // v1 rooms had neither, so synthesise stable ones on the way in.
     id: typeof value.id === "string" ? value.id : `r${fallbackIndex}`,
     name: typeof value.name === "string" ? value.name : `Room ${fallbackIndex + 1}`,
+    locked: value.locked === true,
     walls,
     polygon,
     floorMaterial: value.floorMaterial,

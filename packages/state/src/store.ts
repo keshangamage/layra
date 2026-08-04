@@ -33,6 +33,7 @@ import {
   setFloorMaterial,
   setPlacementLock,
   setPlacementRotation,
+  setRoomLock,
   setWallSettings,
   transformPlacement,
   updateOpening,
@@ -118,11 +119,14 @@ export interface EditorState {
   setActiveRoom: (index: number) => void;
   showOtherRooms: boolean;
   toggleOtherRooms: () => void;
+  hiddenRoomIds: Set<string>;
+  toggleRoomVisibility: (id: string) => void;
   addRoom: () => void;
   duplicateRoom: () => void;
   moveActiveRoom: (dx: number, dz: number) => void;
   rotateActiveRoom: (radians: number) => void;
   deleteRoom: (index: number) => void;
+  toggleRoomLock: () => void;
   reorderRooms: (from: number, to: number) => void;
   renameRoom: (index: number, name: string) => void;
   /** Clears to an empty scene. Undoable, so it needs no confirmation. */
@@ -238,6 +242,10 @@ export function activeRoom(state: EditorState): Room {
   return state.scene.rooms[state.activeRoomIndex] ?? state.scene.rooms[0]!;
 }
 
+export function activeRoomLocked(state: EditorState): boolean {
+  return activeRoom(state).locked === true;
+}
+
 export function currentWallSettings(state: EditorState): WallSettings {
   return wallSettingsOf(state.scene, state.activeRoomIndex, state.wallDefaults);
 }
@@ -301,9 +309,18 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     showOtherRooms: true,
     toggleOtherRooms: () => set((state) => ({ showOtherRooms: !state.showOtherRooms })),
+    hiddenRoomIds: new Set(),
+    toggleRoomVisibility: (id) =>
+      set((state) => {
+        const hiddenRoomIds = new Set(state.hiddenRoomIds);
+        if (hiddenRoomIds.has(id)) hiddenRoomIds.delete(id);
+        else hiddenRoomIds.add(id);
+        return { hiddenRoomIds };
+      }),
 
     nudgeSelected: (dx, dz, multiplier = 1) => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const placement = state.scene.placements.find((p) => p.id === state.selectedId);
       if (!placement || placement.locked) return;
 
@@ -419,6 +436,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     placeOpeningAt: (point) => {
       const state = get();
+      if (activeRoomLocked(state)) return false;
       const type = state.pendingOpening;
       if (!type) return false;
 
@@ -448,6 +466,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     deleteOpening: (wallIndex, openingId) => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const wall = activeRoom(state).walls[wallIndex];
       if (!wall) return;
       const position = wall.openings.findIndex((o) => o.id === openingId);
@@ -462,6 +481,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     beginOpeningDrag: (wallIndex, id, pointer) => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const wall = activeRoom(state).walls[wallIndex];
       const opening = wall?.openings.find((o) => o.id === id);
       if (!wall || !opening) return;
@@ -483,6 +503,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     updateOpeningDrag: (pointer) =>
       set((state) => {
+        if (activeRoomLocked(state)) return state;
         const drag = state.openingDrag;
         if (!drag) return state;
 
@@ -532,6 +553,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     updateSelectedOpening: (patch) => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const reference = state.selectedOpening;
       if (!reference) return;
 
@@ -551,7 +573,8 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       state.execute(updateOpening(state.activeRoomIndex, reference.wallIndex, opening, next, field));
     },
 
-    addDraftPoint: (point) => set((state) => ({ draft: [...state.draft, point] })),
+    addDraftPoint: (point) =>
+      set((state) => (activeRoomLocked(state) ? state : { draft: [...state.draft, point] })),
 
     setCursor: (cursor) => set({ cursor }),
 
@@ -559,6 +582,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     closeDraft: () => {
       const state = get();
+      if (activeRoomLocked(state)) return false;
       if (state.draft.length < 3 || selfIntersects(state.draft)) return false;
       state.execute(closeRoom(
           state.activeRoomIndex,
@@ -576,6 +600,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     addVertexAt: (point) => {
       const state = get();
+      if (activeRoomLocked(state)) return false;
       const { polygon, walls } = activeRoom(state);
       const station = nearestWallStation(polygon, point);
       if (!station) return false;
@@ -601,6 +626,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     deleteSelectedVertex: () => {
       const state = get();
+      if (activeRoomLocked(state)) return false;
       const index = state.selectedVertex;
       const { polygon, walls } = activeRoom(state);
       if (index === null || index < 0 || index >= polygon.length) return false;
@@ -620,8 +646,9 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     },
 
     beginDrag: (index) => {
-      if (get().pendingFurniture) return;
-      const position = activeRoom(get()).polygon[index];
+      const state = get();
+      if (state.pendingFurniture || activeRoomLocked(state)) return;
+      const position = activeRoom(state).polygon[index];
       if (!position) return;
       set({ dragging: { index, position } });
     },
@@ -694,8 +721,12 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     setActiveRoom: (index) => {
       const state = get();
       if (index < 0 || index >= state.scene.rooms.length) return;
+      const nextRoom = state.scene.rooms[index]!;
       set({
         activeRoomIndex: index,
+        view: nextRoom.polygon.length >= 3
+          ? { kind: "fit", nonce: (state.view?.nonce ?? 0) + 1 }
+          : state.view,
         // Selections and drafts belong to the room being left.
         draft: [],
         cursor: null,
@@ -778,6 +809,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     moveActiveRoom: (dx, dz) => {
       if (dx === 0 && dz === 0) return;
       const state = get();
+      if (activeRoomLocked(state)) return;
       const room = activeRoom(state);
       const contents = placementsInRoom(room, state.scene.placements);
       state.execute(moveRoom(state.activeRoomIndex, room, contents, dx, dz));
@@ -785,6 +817,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     rotateActiveRoom: (radians) => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const room = activeRoom(state);
       if (room.polygon.length < 3 || radians === 0) return;
       const contents = placementsInRoom(room, state.scene.placements);
@@ -803,7 +836,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const state = get();
       const room = state.scene.rooms[index];
       // A scene always keeps at least one room.
-      if (!room || state.scene.rooms.length <= 1) return;
+      if (!room || room.locked || state.scene.rooms.length <= 1) return;
 
       const contents = placementsInRoom(room, state.scene.placements);
       state.execute(removeRoom(index, room, contents));
@@ -841,12 +874,21 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     renameRoom: (index, name) => {
       const state = get();
       const room = state.scene.rooms[index];
-      if (!room || room.name === name) return;
+      if (!room || room.locked || room.name === name) return;
       state.execute(renameRoom(index, room.name, name));
+    },
+
+    toggleRoomLock: () => {
+      const state = get();
+      const room = activeRoom(state);
+      state.execute(
+        setRoomLock(state.activeRoomIndex, room.locked === true, room.locked !== true),
+      );
     },
 
     applyFloorMaterial: (id) => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const current = activeRoom(state).floorMaterial;
       if (current === id) return;
       state.execute(setFloorMaterial(state.activeRoomIndex, current, id));
@@ -865,6 +907,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     applyWallSettings: (partial) => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const prev = currentWallSettings(state);
       const next = { ...prev, ...partial };
       if (prev.height === next.height && prev.thickness === next.thickness) return;
@@ -890,6 +933,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     placeFurnitureAt: (point, freeform = false) => {
       const state = get();
+      if (activeRoomLocked(state)) return false;
       const catalogItemId = state.pendingFurniture;
       const item = catalogItemId ? findCatalogItem(catalogItemId) : undefined;
       if (!catalogItemId || !item) return false;
@@ -918,6 +962,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     duplicateSelected: () => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const source = state.scene.placements.find((p) => p.id === state.selectedId);
       if (!source) return;
       const item = findCatalogItem(source.catalogItemId);
@@ -942,6 +987,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     placeFurniture: (catalogItemId) => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const item = findCatalogItem(catalogItemId);
       if (!item) return;
 
@@ -960,6 +1006,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     deleteSelected: () => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const index = state.scene.placements.findIndex((p) => p.id === state.selectedId);
       const placement = state.scene.placements[index];
       if (!placement || placement.locked) return;
@@ -971,6 +1018,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     setSelectedRotation: (radians) => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const placement = state.scene.placements.find((p) => p.id === state.selectedId);
       if (!placement || placement.locked) return;
       if (placement.rotationY === radians) return;
@@ -981,6 +1029,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     toggleSelectedLock: () => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const placement = state.scene.placements.find((p) => p.id === state.selectedId);
       if (!placement) return;
       state.execute(setPlacementLock(placement.id, !placement.locked));
@@ -988,6 +1037,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     rotateSelected: (radians) => {
       const state = get();
+      if (activeRoomLocked(state)) return;
       const placement = state.scene.placements.find((p) => p.id === state.selectedId);
       if (!placement || placement.locked) return;
       state.execute(
@@ -998,8 +1048,9 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     placementDrag: null,
 
     beginPlacementDrag: (id, pointer) => {
-      if (get().pendingFurniture) return;
-      const placement = get().scene.placements.find((p) => p.id === id);
+      const state = get();
+      if (state.pendingFurniture || activeRoomLocked(state)) return;
+      const placement = state.scene.placements.find((p) => p.id === id);
       if (!placement || placement.locked) return;
       // Grab offset, so the piece doesn't jump its centre to the pointer.
       set({
@@ -1100,6 +1151,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         pendingOpening: null,
         measure: { from: null, to: null },
         activeRoomIndex: 0,
+        hiddenRoomIds: new Set(),
         mode: (next.rooms[0]?.polygon.length ?? 0) >= 3 ? "edit" : "draw",
       })),
 
@@ -1121,6 +1173,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         furnitureGhost: null,
         selectedOpening: null,
         activeRoomIndex: 0,
+        hiddenRoomIds: new Set(),
         mode: (next.rooms[0]?.polygon.length ?? 0) >= 3 ? "edit" : "draw",
       });
     },

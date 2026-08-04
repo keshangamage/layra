@@ -9,10 +9,11 @@ interface SliderProps {
   min: number;
   max: number;
   step: number;
+  disabled?: boolean;
   onChange: (value: number) => void;
 }
 
-function Slider({ label, value, min, max, step, onChange }: SliderProps) {
+function Slider({ label, value, min, max, step, disabled, onChange }: SliderProps) {
   return (
     <label className="block">
       <span className="flex items-baseline justify-between text-xs text-zinc-400">
@@ -25,8 +26,9 @@ function Slider({ label, value, min, max, step, onChange }: SliderProps) {
         max={max}
         step={step}
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="mt-1.5 w-full accent-zinc-400"
+        className="mt-1.5 w-full accent-zinc-400 disabled:opacity-40"
       />
     </label>
   );
@@ -36,6 +38,7 @@ export function SettingsPanel() {
   // Selected as primitives; currentWallSettings returns a fresh object each call.
   const height = useEditor((state) => currentWallSettings(state).height);
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
+  const locked = useEditor((state) => state.scene.rooms[state.activeRoomIndex]?.locked === true);
 
   return (
     <section className="space-y-4 border-b border-zinc-800 p-4">
@@ -49,6 +52,7 @@ export function SettingsPanel() {
         max={4}
         step={0.05}
         onChange={(value) => editor().applyWallSettings({ height: value })}
+        disabled={locked}
       />
       <Slider
         label="Thickness"
@@ -57,6 +61,7 @@ export function SettingsPanel() {
         max={0.6}
         step={0.01}
         onChange={(value) => editor().applyWallSettings({ thickness: value })}
+        disabled={locked}
       />
     </section>
   );

@@ -8,6 +8,7 @@ export function RoomsPanel() {
   const rooms = useEditor((state) => state.scene.rooms);
   const activeIndex = useEditor((state) => state.activeRoomIndex);
   const showOtherRooms = useEditor((state) => state.showOtherRooms);
+  const hiddenRoomIds = useEditor((state) => state.hiddenRoomIds);
   const [editing, setEditing] = useState<number | null>(null);
   const activeRoomIsDrawn = (rooms[activeIndex]?.polygon.length ?? 0) >= 3;
   const overlapIds = useMemo(() => overlappingRooms(rooms), [rooms]);
@@ -81,6 +82,32 @@ export function RoomsPanel() {
                     )}
                     {rooms.length > 1 && (
                       <span className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          aria-label={`${hiddenRoomIds.has(room.id) ? "Show" : "Hide"} ${room.name}`}
+                          title={index === activeIndex ? "The active room is always visible" : hiddenRoomIds.has(room.id) ? "Show room" : "Hide room"}
+                          disabled={index === activeIndex}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            editor().toggleRoomVisibility(room.id);
+                          }}
+                          className="text-zinc-600 hover:text-zinc-200 disabled:opacity-20"
+                        >
+                          {hiddenRoomIds.has(room.id) ? "○" : "◉"}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`${room.locked ? "Unlock" : "Lock"} ${room.name}`}
+                          title={room.locked ? "Unlock room" : "Lock room"}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (index !== activeIndex) editor().setActiveRoom(index);
+                            editor().toggleRoomLock();
+                          }}
+                          className={room.locked ? "text-amber-400" : "text-zinc-600 hover:text-zinc-200"}
+                        >
+                          {room.locked ? "●" : "○"}
+                        </button>
                         <button
                           type="button"
                           aria-label={`Move ${room.name} up`}
