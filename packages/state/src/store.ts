@@ -16,10 +16,13 @@ import {
   addOpening,
   addPlacement,
   addRoom,
+  duplicateRoom,
   addVertex,
   closeRoom,
   loadScene,
   moveVertex,
+  moveRoom,
+  rotateRoom,
   removeOpening,
   removePlacement,
   removeRoom,
@@ -39,6 +42,7 @@ import {
 import { snapPoint, snapToGrid } from "./snap";
 import { clampOpening, sameOpening } from "./openings";
 import { mountToWall, snapFloorToWall } from "./mounting";
+import { placementsInRoom } from "./collision";
 
 export type Mode = "draw" | "edit" | "measure";
 
@@ -111,7 +115,12 @@ export interface EditorState {
   applyFloorMaterial: (id: string) => void;
 
   setActiveRoom: (index: number) => void;
+  showOtherRooms: boolean;
+  toggleOtherRooms: () => void;
   addRoom: () => void;
+  duplicateRoom: () => void;
+  moveActiveRoom: (dx: number, dz: number) => void;
+  rotateActiveRoom: (radians: number) => void;
   deleteRoom: (index: number) => void;
   renameRoom: (index: number, name: string) => void;
   /** Clears to an empty scene. Undoable, so it needs no confirmation. */
@@ -253,6 +262,9 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     snap: DEFAULT_SNAP,
 
     setSnap: (next) => set((state) => ({ snap: { ...state.snap, ...next } })),
+
+    showOtherRooms: true,
+    toggleOtherRooms: () => set((state) => ({ showOtherRooms: !state.showOtherRooms })),
 
     nudgeSelected: (dx, dz, multiplier = 1) => {
       const state = get();
@@ -642,18 +654,85 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       });
     },
 
+    duplicateRoom: () => {
+      const state = get();
+      const room = activeRoom(state);
+      const sourceIndex = state.activeRoomIndex;
+      const offset = Math.max(bounds(room.polygon).size.x + 1.5, 3);
+      const shift = (point: Vec2): Vec2 => ({ x: point.x + offset, z: point.z });
+      const copy: Room = {
+        ...room,
+        id: crypto.randomUUID(),
+        name: `${room.name} copy`,
+        polygon: room.polygon.map(shift),
+        walls: room.walls.map((wall) => ({
+          ...wall,
+          id: crypto.randomUUID(),
+          start: shift(wall.start),
+          end: shift(wall.end),
+          openings: wall.openings.map((opening) => ({ ...opening, id: crypto.randomUUID() })),
+        })),
+      };
+      const sourceContents = placementsInRoom(room, state.scene.placements);
+      const copyContents = sourceContents.map((placement) => ({
+        ...placement,
+        id: crypto.randomUUID(),
+        position: { ...placement.position, x: placement.position.x + offset },
+      }));
+
+      state.execute(duplicateRoom(sourceIndex, room, copy, copyContents));
+      set({
+        activeRoomIndex: sourceIndex + 1,
+        mode: copy.polygon.length >= 3 ? "edit" : "draw",
+        draft: [],
+        cursor: null,
+        selectedId: null,
+        selectedVertex: null,
+        selectedOpening: null,
+        pendingOpening: null,
+        pendingFurniture: null,
+        furnitureGhost: null,
+      });
+    },
+
+    moveActiveRoom: (dx, dz) => {
+      if (dx === 0 && dz === 0) return;
+      const state = get();
+      const room = activeRoom(state);
+      const contents = placementsInRoom(room, state.scene.placements);
+      state.execute(moveRoom(state.activeRoomIndex, room, contents, dx, dz));
+    },
+
+    rotateActiveRoom: (radians) => {
+      const state = get();
+      const room = activeRoom(state);
+      if (room.polygon.length < 3 || radians === 0) return;
+      const contents = placementsInRoom(room, state.scene.placements);
+      state.execute(
+        rotateRoom(
+          state.activeRoomIndex,
+          room,
+          contents,
+          bounds(room.polygon).center,
+          radians,
+        ),
+      );
+    },
+
     deleteRoom: (index) => {
       const state = get();
       const room = state.scene.rooms[index];
       // A scene always keeps at least one room.
       if (!room || state.scene.rooms.length <= 1) return;
 
-      state.execute(removeRoom(index, room));
+      const contents = placementsInRoom(room, state.scene.placements);
+      state.execute(removeRoom(index, room, contents));
       const nextIndex = Math.max(0, Math.min(state.activeRoomIndex, state.scene.rooms.length - 2));
       set({
         activeRoomIndex: nextIndex,
         selectedVertex: null,
         selectedOpening: null,
+        selectedId: null,
         draft: [],
         cursor: null,
       });

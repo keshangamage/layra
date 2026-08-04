@@ -66,8 +66,11 @@ const MAX_RECOVERY_ATTEMPTS = 2;
 
 /** Every room except the one being edited, drawn without pointer handling. */
 function OtherRooms() {
+  const showOtherRooms = useEditor((state) => state.showOtherRooms);
   const rooms = useEditor((state) => state.scene.rooms);
   const activeIndex = useEditor((state) => state.activeRoomIndex);
+
+  if (!showOtherRooms) return null;
 
   return (
     <group>
@@ -76,7 +79,13 @@ function OtherRooms() {
         const height = room.walls[0]?.height ?? 2.5;
         const thickness = room.walls[0]?.thickness ?? 0.2;
         return (
-          <group key={room.id}>
+          <group
+            key={room.id}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              editor().setActiveRoom(index);
+            }}
+          >
             <Floor
               polygon={room.polygon}
               thickness={thickness}

@@ -245,18 +245,154 @@ export function addRoom(room: Room): Command {
   };
 }
 
-export function removeRoom(index: number, room: Room): Command {
+export function duplicateRoom(
+  index: number,
+  room: Room,
+  copy: Room,
+  copyContents: readonly Placement[],
+): Command {
   return {
-    label: `Delete ${room.name}`,
+    label: `Duplicate ${room.name}`,
+    do: (scene) => {
+      const rooms = [...scene.rooms];
+      rooms.splice(Math.min(index + 1, rooms.length), 0, copy);
+      return { ...scene, rooms, placements: [...scene.placements, ...copyContents] };
+    },
+    undo: (scene) => ({
+      ...scene,
+      rooms: scene.rooms.filter((existing) => existing.id !== copy.id),
+      placements: scene.placements.filter(
+        (placement) => !copyContents.some((copyPlacement) => copyPlacement.id === placement.id),
+      ),
+    }),
+  };
+}
+
+function translatedRoom(room: Room, dx: number, dz: number): Room {
+  const move = (point: Vec2): Vec2 => ({ x: point.x + dx, z: point.z + dz });
+  return {
+    ...room,
+    polygon: room.polygon.map(move),
+    walls: room.walls.map((wall) => ({ ...wall, start: move(wall.start), end: move(wall.end) })),
+  };
+}
+
+export function moveRoom(
+  index: number,
+  room: Room,
+  contents: readonly Placement[],
+  dx: number,
+  dz: number,
+): Command {
+  const ids = new Set(contents.map((placement) => placement.id));
+  const apply = (scene: Scene, x: number, z: number): Scene => ({
+    ...scene,
+    rooms: scene.rooms.map((existing, i) =>
+      i === index ? translatedRoom(existing, x, z) : existing,
+    ),
+    placements: scene.placements.map((placement) =>
+      ids.has(placement.id)
+        ? { ...placement, position: { ...placement.position, x: placement.position.x + x, z: placement.position.z + z } }
+        : placement,
+    ),
+  });
+
+  return {
+    label: `Move ${room.name}`,
+    do: (scene) => apply(scene, dx, dz),
+    undo: (scene) => apply(scene, -dx, -dz),
+  };
+}
+
+function rotatedPoint(point: Vec2, pivot: Vec2, radians: number): Vec2 {
+  const x = point.x - pivot.x;
+  const z = point.z - pivot.z;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const clean = (value: number) => (Math.abs(value) < 1e-10 ? 0 : value);
+  return {
+    x: clean(pivot.x + x * cos - z * sin),
+    z: clean(pivot.z + x * sin + z * cos),
+  };
+}
+
+function rotatedRoom(room: Room, pivot: Vec2, radians: number): Room {
+  const rotate = (point: Vec2) => rotatedPoint(point, pivot, radians);
+  return {
+    ...room,
+    polygon: room.polygon.map(rotate),
+    walls: room.walls.map((wall) => ({
+      ...wall,
+      start: rotate(wall.start),
+      end: rotate(wall.end),
+    })),
+  };
+}
+
+export function rotateRoom(
+  index: number,
+  room: Room,
+  contents: readonly Placement[],
+  pivot: Vec2,
+  radians: number,
+): Command {
+  const ids = new Set(contents.map((placement) => placement.id));
+  const apply = (scene: Scene, angle: number): Scene => ({
+    ...scene,
+    rooms: scene.rooms.map((existing, i) =>
+      i === index ? rotatedRoom(existing, pivot, angle) : existing,
+    ),
+    placements: scene.placements.map((placement) => {
+      if (!ids.has(placement.id)) return placement;
+      const position = rotatedPoint(
+        { x: placement.position.x, z: placement.position.z },
+        pivot,
+        angle,
+      );
+      return {
+        ...placement,
+        position: { ...placement.position, x: position.x, z: position.z },
+        rotationY: placement.rotationY + angle,
+      };
+    }),
+  });
+
+  return {
+    label: `Rotate ${room.name}`,
+    do: (scene) => apply(scene, radians),
+    undo: (scene) => apply(scene, -radians),
+  };
+}
+
+/**
+ * Removes a room and the furniture standing in it.
+ *
+ * Leaving the contents behind would strand them outside every room, where
+ * collision immediately flags them. Undo restores both.
+ */
+export function removeRoom(
+  index: number,
+  room: Room,
+  contents: readonly Placement[] = [],
+): Command {
+  const removed = new Set(contents.map((p) => p.id));
+  const label =
+    contents.length > 0
+      ? `Delete ${room.name} and ${contents.length} item${contents.length === 1 ? "" : "s"}`
+      : `Delete ${room.name}`;
+
+  return {
+    label,
     do: (scene) => ({
       ...scene,
       rooms: scene.rooms.filter((_, i) => i !== index),
+      placements: scene.placements.filter((p) => !removed.has(p.id)),
     }),
     // Restores at its original position so undo does not reorder the list.
     undo: (scene) => {
       const rooms = [...scene.rooms];
       rooms.splice(Math.min(index, rooms.length), 0, room);
-      return { ...scene, rooms };
+      return { ...scene, rooms, placements: [...scene.placements, ...contents] };
     },
   };
 }
