@@ -245,6 +245,22 @@ export function addRoom(room: Room): Command {
   };
 }
 
+export function reorderRooms(
+  from: number,
+  to: number,
+  before: readonly Room[],
+): Command {
+  const after = [...before];
+  const [room] = after.splice(from, 1);
+  if (!room) return { label: "Reorder rooms", do: (scene) => scene, undo: (scene) => scene };
+  after.splice(to, 0, room);
+  return {
+    label: "Reorder rooms",
+    do: (scene) => ({ ...scene, rooms: after }),
+    undo: (scene) => ({ ...scene, rooms: [...before] }),
+  };
+}
+
 export function duplicateRoom(
   index: number,
   room: Room,

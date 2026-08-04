@@ -16,6 +16,7 @@ export {
   removeOpening,
   removePlacement,
   removeRoom,
+  reorderRooms,
   removeVertex,
   renameRoom,
   roomFromPolygon,
@@ -52,6 +53,7 @@ export {
   findCollisions,
   isBlocked,
   placementRect,
+  overlappingRooms,
   placementsInRoom,
   type CollisionReport,
 } from "./collision";

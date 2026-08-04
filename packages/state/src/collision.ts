@@ -4,6 +4,8 @@ import {
   expandRect,
   polygonContains,
   rectCorners,
+  pointInPolygon,
+  segmentsIntersect,
   wallLoops,
   type Rect,
 } from "@layra/geometry";
@@ -130,4 +132,38 @@ export function placementsInRoom(
     const rect = placementRect(placement);
     return rect ? polygonContains(rectCorners(rect), inner) : false;
   });
+}
+
+function polygonsOverlap(a: Room, b: Room): boolean {
+  if (a.polygon.length < 3 || b.polygon.length < 3) return false;
+
+  for (let i = 0; i < a.polygon.length; i++) {
+    const aStart = a.polygon[i]!;
+    const aEnd = a.polygon[(i + 1) % a.polygon.length]!;
+    for (let j = 0; j < b.polygon.length; j++) {
+      const bStart = b.polygon[j]!;
+      const bEnd = b.polygon[(j + 1) % b.polygon.length]!;
+      if (segmentsIntersect(aStart, aEnd, bStart, bEnd)) return true;
+    }
+  }
+
+  return (
+    pointInPolygon(a.polygon[0]!, b.polygon) ||
+    pointInPolygon(b.polygon[0]!, a.polygon)
+  );
+}
+
+/** Room ids whose floor polygons intersect another drawn room. */
+export function overlappingRooms(rooms: readonly Room[]): Set<string> {
+  const overlapping = new Set<string>();
+  for (let i = 0; i < rooms.length; i++) {
+    for (let j = i + 1; j < rooms.length; j++) {
+      const first = rooms[i]!;
+      const second = rooms[j]!;
+      if (!polygonsOverlap(first, second)) continue;
+      overlapping.add(first.id);
+      overlapping.add(second.id);
+    }
+  }
+  return overlapping;
 }

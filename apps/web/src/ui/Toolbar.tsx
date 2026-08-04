@@ -55,7 +55,7 @@ export function Toolbar() {
                 ? "Look straight down"
                 : kind === "iso"
                   ? "Angled view"
-                  : "Frame the room"
+                  : "Frame visible rooms"
             }
           >
             {kind === "iso" ? "3D" : kind === "top" ? "Plan" : "Fit"}
