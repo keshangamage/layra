@@ -190,6 +190,36 @@ describe("deleting and renaming", () => {
   });
 });
 
+describe("reordering rooms", () => {
+  it("moves a room and keeps the active room selected", () => {
+    const s = storeWithRoom();
+    s.getState().addRoom();
+    s.getState().addRoom();
+    s.getState().setActiveRoom(0);
+    const firstId = rooms(s)[0]!.id;
+
+    s.getState().reorderRooms(0, 2);
+
+    expect(rooms(s)[2]?.id).toBe(firstId);
+    expect(rooms(s)[0]?.id).not.toBe(firstId);
+    expect(rooms(s)[1]?.id).not.toBe(firstId);
+    expect(s.getState().activeRoomIndex).toBe(2);
+  });
+
+  it("undoes and redoes the list order", () => {
+    const s = storeWithRoom();
+    s.getState().addRoom();
+    const before = rooms(s).map((room) => room.id);
+
+    s.getState().reorderRooms(0, 1);
+    s.getState().undo();
+    expect(rooms(s).map((room) => room.id)).toEqual(before);
+
+    s.getState().redo();
+    expect(rooms(s).map((room) => room.id)).toEqual([before[1], before[0]]);
+  });
+});
+
 describe("duplicating a room", () => {
   it("copies the active room to the right and selects it", () => {
     const s = storeWithRoom();

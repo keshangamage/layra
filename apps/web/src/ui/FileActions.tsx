@@ -1,7 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { parseScene, sceneToSvg, serializeScene } from "@layra/state";
+import {
+  activeRoom,
+  parseScene,
+  placementsInRoom,
+  sceneToSvg,
+  serializeScene,
+} from "@layra/state";
 import { editor } from "@/state/editor";
 
 const BUTTON =
@@ -25,6 +31,17 @@ export function FileActions() {
 
   const exportSvg = () =>
     download(sceneToSvg(editor().scene), "layra-plan.svg", "image/svg+xml");
+
+  const exportActiveRoom = () => {
+    const state = editor();
+    const room = activeRoom(state);
+    const scene = {
+      ...state.scene,
+      rooms: [room],
+      placements: placementsInRoom(room, state.scene.placements),
+    };
+    download(sceneToSvg(scene), "layra-room.svg", "image/svg+xml");
+  };
 
   const load = async (file: File) => {
     const result = parseScene(await file.text());
@@ -58,6 +75,9 @@ export function FileActions() {
       </button>
       <button type="button" className={BUTTON} onClick={exportSvg}>
         Export SVG
+      </button>
+      <button type="button" className={BUTTON} onClick={exportActiveRoom}>
+        Export room
       </button>
 
       <input

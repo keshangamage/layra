@@ -26,6 +26,7 @@ import {
   removeOpening,
   removePlacement,
   removeRoom,
+  reorderRooms,
   removeVertex,
   renameRoom,
   rotatePlacement,
@@ -122,6 +123,7 @@ export interface EditorState {
   moveActiveRoom: (dx: number, dz: number) => void;
   rotateActiveRoom: (radians: number) => void;
   deleteRoom: (index: number) => void;
+  reorderRooms: (from: number, to: number) => void;
   renameRoom: (index: number, name: string) => void;
   /** Clears to an empty scene. Undoable, so it needs no confirmation. */
   newScene: () => void;
@@ -815,6 +817,25 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         draft: [],
         cursor: null,
       });
+    },
+
+    reorderRooms: (from, to) => {
+      const state = get();
+      if (
+        from < 0 ||
+        to < 0 ||
+        from >= state.scene.rooms.length ||
+        to >= state.scene.rooms.length ||
+        from === to
+      ) {
+        return;
+      }
+      state.execute(reorderRooms(from, to, state.scene.rooms));
+      let activeRoomIndex = state.activeRoomIndex;
+      if (activeRoomIndex === from) activeRoomIndex = to;
+      else if (from < activeRoomIndex && to >= activeRoomIndex) activeRoomIndex -= 1;
+      else if (from > activeRoomIndex && to <= activeRoomIndex) activeRoomIndex += 1;
+      set({ activeRoomIndex });
     },
 
     renameRoom: (index, name) => {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { overlappingRooms } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 
 export function RoomsPanel() {
@@ -9,6 +10,7 @@ export function RoomsPanel() {
   const showOtherRooms = useEditor((state) => state.showOtherRooms);
   const [editing, setEditing] = useState<number | null>(null);
   const activeRoomIsDrawn = (rooms[activeIndex]?.polygon.length ?? 0) >= 3;
+  const overlapIds = useMemo(() => overlappingRooms(rooms), [rooms]);
 
   return (
     <section className="border-b border-zinc-800 p-4">
@@ -68,18 +70,53 @@ export function RoomsPanel() {
                     <span className="font-mono text-[10px] text-zinc-600">
                       {room.polygon.length >= 3 ? `${room.walls.length} walls` : "empty"}
                     </span>
-                    {rooms.length > 1 && (
-                      <button
-                        type="button"
-                        aria-label={`Delete ${room.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          editor().deleteRoom(index);
-                        }}
-                        className="text-zinc-500 hover:text-red-400"
+                    {overlapIds.has(room.id) && (
+                      <span
+                        className="text-amber-400"
+                        title="This room overlaps another room"
+                        aria-label="Room overlaps another room"
                       >
-                        ×
-                      </button>
+                        !
+                      </span>
+                    )}
+                    {rooms.length > 1 && (
+                      <span className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          aria-label={`Move ${room.name} up`}
+                          disabled={index === 0}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            editor().reorderRooms(index, index - 1);
+                          }}
+                          className="text-zinc-600 hover:text-zinc-200 disabled:opacity-20"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Move ${room.name} down`}
+                          disabled={index === rooms.length - 1}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            editor().reorderRooms(index, index + 1);
+                          }}
+                          className="text-zinc-600 hover:text-zinc-200 disabled:opacity-20"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Delete ${room.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            editor().deleteRoom(index);
+                          }}
+                          className="text-zinc-500 hover:text-red-400"
+                        >
+                          ×
+                        </button>
+                      </span>
                     )}
                   </span>
                 </>

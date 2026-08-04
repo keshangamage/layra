@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Placement, Room } from "@layra/types";
-import { clearanceRect, findCollisions, isBlocked, placementRect } from "./collision";
+import {
+  clearanceRect,
+  findCollisions,
+  isBlocked,
+  overlappingRooms,
+  placementRect,
+} from "./collision";
 import { roomFromPolygon } from "./commands";
 
 const room: Room = roomFromPolygon(
@@ -34,6 +40,37 @@ describe("placementRect", () => {
 
   it("returns null for an unknown item", () => {
     expect(placementRect(place("nope", 0, 0))).toBeNull();
+  });
+});
+
+describe("room overlap warnings", () => {
+  const makeRoom = (id: string, x: number): Room =>
+    roomFromPolygon(
+      [
+        { x, z: 0 },
+        { x: x + 2, z: 0 },
+        { x: x + 2, z: 2 },
+        { x, z: 2 },
+      ],
+      { height: 2.5, thickness: 0.2 },
+      { id, name: id, floorMaterial: "default" },
+    );
+
+  it("flags both rooms when their floors intersect", () => {
+    const first = makeRoom("r1", 0);
+    const second = makeRoom("r2", 1.5);
+    expect(overlappingRooms([first, second])).toEqual(new Set(["r1", "r2"]));
+  });
+
+  it("ignores separated and empty rooms", () => {
+    const first = makeRoom("r1", 0);
+    const second = makeRoom("r2", 3);
+    const empty = roomFromPolygon([], { height: 2.5, thickness: 0.2 }, {
+      id: "r3",
+      name: "r3",
+      floorMaterial: "default",
+    });
+    expect(overlappingRooms([first, second, empty])).toEqual(new Set());
   });
 });
 
