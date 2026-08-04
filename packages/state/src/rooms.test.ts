@@ -221,6 +221,19 @@ describe("duplicating a room", () => {
 });
 
 describe("moving a room", () => {
+  it("keeps the drag transient until release and snaps it to the grid", () => {
+    const s = storeWithRoom();
+    s.getState().beginRoomDrag({ x: 1, z: 1 });
+    s.getState().updateRoomDrag({ x: 1.74, z: 0.36 });
+
+    expect(s.getState().roomDrag?.delta).toEqual({ x: 0.7, z: -0.6 });
+    expect(s.getState().scene.rooms[0]?.polygon[0]).toEqual({ x: 0, z: 0 });
+
+    s.getState().endRoomDrag();
+    expect(s.getState().scene.rooms[0]?.polygon[0]).toEqual({ x: 0.7, z: -0.6 });
+    expect(s.getState().past.at(-1)?.label).toBe("Move Room 1");
+  });
+
   it("moves the room and its furniture together", () => {
     const s = storeWithRoom();
     s.getState().armFurniture("desk");

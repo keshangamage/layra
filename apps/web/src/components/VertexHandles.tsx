@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useShallow } from "zustand/react/shallow";
-import { livePolygon, snapPoint } from "@layra/state";
+import { useEffect, useMemo, useState } from "react";
+import { activeRoom, snapPoint } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 import { useGroundPointer } from "./useGroundPointer";
 
@@ -12,8 +11,22 @@ const RADIUS = 0.11;
 
 export function VertexHandles() {
   const mode = useEditor((state) => state.mode);
-  const polygon = useEditor(useShallow(livePolygon));
-  const draggingIndex = useEditor((state) => state.dragging?.index ?? null);
+  const storedPolygon = useEditor((state) => activeRoom(state).polygon);
+  const vertexDrag = useEditor((state) => state.dragging);
+  const roomDrag = useEditor((state) => state.roomDrag);
+  const polygon = useMemo(() => {
+    const translated = roomDrag
+      ? storedPolygon.map((point) => ({
+          x: point.x + roomDrag.delta.x,
+          z: point.z + roomDrag.delta.z,
+        }))
+      : storedPolygon;
+    if (!vertexDrag) return translated;
+    return translated.map((point, index) =>
+      index === vertexDrag.index ? vertexDrag.position : point,
+    );
+  }, [roomDrag, storedPolygon, vertexDrag]);
+  const draggingIndex = vertexDrag?.index ?? null;
   const selected = useEditor((state) => state.selectedVertex);
   const groundAt = useGroundPointer();
   const [hovered, setHovered] = useState<number | null>(null);

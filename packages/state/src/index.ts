@@ -66,6 +66,7 @@ export {
   historyLabels,
   livePlacements,
   livePolygon,
+  liveRoom,
   type EditorState,
   type EditorStore,
   type Mode,

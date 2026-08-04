@@ -3,16 +3,15 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
-import { useShallow } from "zustand/react/shallow";
 import { Vector3 } from "three";
 import { bounds } from "@layra/geometry";
-import { currentWallSettings, livePolygon,
-  activeRoom,
+import { activeRoom, currentWallSettings,
 } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 import { Walls } from "./Walls";
 import { Floor } from "./Floor";
 import { DrawController } from "./DrawController";
+import { RoomDragController } from "./RoomDragController";
 import { DraftPolyline } from "./DraftPolyline";
 import { VertexHandles } from "./VertexHandles";
 import { Furniture } from "./Furniture";
@@ -24,9 +23,28 @@ import { MeasureTool } from "./MeasureTool";
 
 /** The room being edited, which follows an in-progress vertex drag. */
 function ActiveRoom() {
-  // livePolygon builds a new array mid-drag, so compare by element identity.
-  const polygon = useEditor(useShallow(livePolygon));
-  const walls = useEditor((state) => activeRoom(state).walls);
+  const storedRoom = useEditor((state) => activeRoom(state));
+  const roomDrag = useEditor((state) => state.roomDrag);
+  const room = useMemo(() => {
+    if (!roomDrag) return storedRoom;
+    const move = (point: { x: number; z: number }) => ({
+      x: point.x + roomDrag.delta.x,
+      z: point.z + roomDrag.delta.z,
+    });
+    return {
+      ...storedRoom,
+      polygon: storedRoom.polygon.map(move),
+      walls: storedRoom.walls.map((wall) => ({
+        ...wall,
+        start: move(wall.start),
+        end: move(wall.end),
+      })),
+    };
+  }, [roomDrag, storedRoom]);
+  const polygon = room.polygon;
+  const walls = room.walls;
+  const mode = useEditor((state) => state.mode);
+  const pendingOpening = useEditor((state) => state.pendingOpening);
   const openings = useMemo(() => walls.map((wall) => wall.openings), [walls]);
   const height = useEditor((state) => currentWallSettings(state).height);
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
@@ -40,6 +58,11 @@ function ActiveRoom() {
         polygon={polygon}
         thickness={thickness}
         material={floorMaterial}
+        onPointerDown={(event) => {
+          if (mode !== "edit" || pendingOpening) return;
+          event.stopPropagation();
+          editor().beginRoomDrag({ x: event.point.x, z: event.point.z });
+        }}
       />
       <Walls
         polygon={polygon}
@@ -112,6 +135,7 @@ export default function Scene() {
   const isDragging = useEditor(
     (state) =>
       state.dragging !== null ||
+      state.roomDrag !== null ||
       state.placementDrag !== null ||
       state.openingDrag !== null,
   );
@@ -197,6 +221,7 @@ export default function Scene() {
       <Furniture />
       <Openings />
       <FurniturePlacer />
+      <RoomDragController />
       <CameraRig />
       <DraftPolyline />
       <VertexHandles />

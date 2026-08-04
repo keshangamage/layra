@@ -6,6 +6,7 @@ import {
   findCatalogItem,
   findCollisions,
   isBlocked,
+  placementsInRoom,
 } from "@layra/state";
 import type { Rect } from "@layra/geometry";
 import type { Placement } from "@layra/types";
@@ -87,24 +88,67 @@ export function Furniture() {
   // object per call, so as a selector it makes getSnapshot loop forever.
   const stored = useEditor((state) => state.scene.placements);
   const rooms = useEditor((state) => state.scene.rooms);
+  const activeRoomIndex = useEditor((state) => state.activeRoomIndex);
+  const roomDrag = useEditor((state) => state.roomDrag);
   const drag = useEditor((state) => state.placementDrag);
   const selectedId = useEditor((state) => state.selectedId);
   const groundAt = useGroundPointer();
   const [hovered, setHovered] = useState(false);
 
   const isDragging = drag !== null;
+  const displayRooms = useMemo(() => {
+    if (!roomDrag) return rooms;
+    const room = rooms[activeRoomIndex];
+    if (!room) return rooms;
+    const move = (point: { x: number; z: number }) => ({
+      x: point.x + roomDrag.delta.x,
+      z: point.z + roomDrag.delta.z,
+    });
+    return rooms.map((candidate, index) =>
+      index === activeRoomIndex
+        ? {
+            ...candidate,
+            polygon: candidate.polygon.map(move),
+            walls: candidate.walls.map((wall) => ({
+              ...wall,
+              start: move(wall.start),
+              end: move(wall.end),
+            })),
+          }
+        : candidate,
+    );
+  }, [activeRoomIndex, roomDrag, rooms]);
+
   const placements = useMemo(
-    () =>
-      drag
-        ? stored.map((p) => (p.id === drag.id ? { ...p, position: drag.position } : p))
-        : stored,
-    [stored, drag],
+    () => {
+      let next = stored;
+      const room = rooms[activeRoomIndex];
+      if (roomDrag && room) {
+        const ids = new Set(placementsInRoom(room, stored).map((p) => p.id));
+        next = stored.map((p) =>
+          ids.has(p.id)
+            ? {
+                ...p,
+                position: {
+                  ...p.position,
+                  x: p.position.x + roomDrag.delta.x,
+                  z: p.position.z + roomDrag.delta.z,
+                },
+              }
+            : p,
+        );
+      }
+      return drag
+        ? next.map((p) => (p.id === drag.id ? { ...p, position: drag.position } : p))
+        : next;
+    },
+    [activeRoomIndex, drag, roomDrag, rooms, stored],
   );
 
   // Recomputed against the live positions, so the warning tracks the drag.
   const collisions = useMemo(
-    () => findCollisions(rooms, placements),
-    [rooms, placements],
+    () => findCollisions(displayRooms, placements),
+    [displayRooms, placements],
   );
 
   // Only the selected piece shows its zone, or the floor turns to soup.

@@ -187,6 +187,10 @@ export interface EditorState {
     /** Set while sliding a wall-mounted piece onto a differently angled wall. */
     rotationY?: number;
   } | null;
+  roomDrag: { from: Vec2; delta: Vec2 } | null;
+  beginRoomDrag: (pointer: Vec2) => void;
+  updateRoomDrag: (pointer: Vec2) => void;
+  endRoomDrag: () => void;
   beginPlacementDrag: (id: string, pointer: Vec2) => void;
   updatePlacementDrag: (pointer: Vec2, freeform?: boolean) => void;
   endPlacementDrag: () => void;
@@ -206,10 +210,25 @@ export const DEFAULT_WALLS: WallSettings = { height: 2.5, thickness: 0.2 };
 
 /** The polygon as currently displayed, including an in-progress drag. */
 export function livePolygon(state: EditorState): Vec2[] {
-  const { polygon } = activeRoom(state);
+  const { polygon } = liveRoom(state);
   const drag = state.dragging;
   if (!drag) return polygon;
   return polygon.map((p, i) => (i === drag.index ? drag.position : p));
+}
+
+export function liveRoom(state: EditorState): Room {
+  const room = activeRoom(state);
+  const drag = state.roomDrag;
+  if (!drag) return room;
+  const move = (point: Vec2): Vec2 => ({
+    x: point.x + drag.delta.x,
+    z: point.z + drag.delta.z,
+  });
+  return {
+    ...room,
+    polygon: room.polygon.map(move),
+    walls: room.walls.map((wall) => ({ ...wall, start: move(wall.start), end: move(wall.end) })),
+  };
 }
 
 /** The room currently being edited. Never undefined: a scene always has one. */
@@ -228,12 +247,26 @@ export function currentWallSettings(state: EditorState): WallSettings {
  */
 export function livePlacements(state: EditorState): Placement[] {
   const drag = state.placementDrag;
-  if (!drag) return state.scene.placements;
-  return state.scene.placements.map((p) =>
-    p.id === drag.id
-      ? { ...p, position: drag.position, rotationY: drag.rotationY ?? p.rotationY }
-      : p,
-  );
+  const roomDrag = state.roomDrag;
+  if (!drag && !roomDrag) return state.scene.placements;
+  const moved = roomDrag
+    ? new Set(placementsInRoom(activeRoom(state), state.scene.placements).map((p) => p.id))
+    : null;
+  return state.scene.placements.map((p) => {
+    const roomPosition = moved?.has(p.id)
+      ? {
+          ...p.position,
+          x: p.position.x + roomDrag!.delta.x,
+          z: p.position.z + roomDrag!.delta.z,
+        }
+      : p.position;
+    if (p.id !== drag?.id) return roomPosition === p.position ? p : { ...p, position: roomPosition };
+    return {
+      ...p,
+      position: drag.position,
+      rotationY: drag.rotationY ?? p.rotationY,
+    };
+  });
 }
 
 export function historyLabels(state: EditorState): {
@@ -258,6 +291,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     draft: [],
     cursor: null,
     dragging: null,
+    roomDrag: null,
     wallDefaults: DEFAULT_WALLS,
     snap: DEFAULT_SNAP,
 
@@ -346,6 +380,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         draft: [],
         cursor: null,
         dragging: null,
+        roomDrag: null,
         measure: { from: null, to: null },
       }),
 
@@ -589,6 +624,47 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       set({ dragging: { index, position } });
     },
 
+    beginRoomDrag: (pointer) => {
+      const state = get();
+      if (state.mode !== "edit" || state.pendingFurniture || state.pendingOpening) return;
+      if (activeRoom(state).polygon.length < 3) return;
+      set({ roomDrag: { from: pointer, delta: { x: 0, z: 0 } } });
+    },
+
+    updateRoomDrag: (pointer) => {
+      const state = get();
+      const drag = state.roomDrag;
+      if (!drag) return;
+      set({
+        roomDrag: {
+          ...drag,
+          delta: {
+            x: snapToGrid(pointer.x - drag.from.x, state.snap.grid),
+            z: snapToGrid(pointer.z - drag.from.z, state.snap.grid),
+          },
+        },
+      });
+    },
+
+    endRoomDrag: () => {
+      const state = get();
+      const drag = state.roomDrag;
+      if (!drag) return;
+      set({ roomDrag: null });
+      if (drag.delta.x === 0 && drag.delta.z === 0) return;
+      const room = activeRoom(state);
+      const contents = placementsInRoom(room, state.scene.placements);
+      state.execute(
+        moveRoom(
+          state.activeRoomIndex,
+          room,
+          contents,
+          drag.delta.x,
+          drag.delta.z,
+        ),
+      );
+    },
+
     updateDrag: (position) =>
       set((state) =>
         state.dragging ? { dragging: { ...state.dragging, position } } : state,
@@ -622,6 +698,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         draft: [],
         cursor: null,
         dragging: null,
+        roomDrag: null,
         selectedVertex: null,
         selectedOpening: null,
         pendingOpening: null,
@@ -645,6 +722,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         mode: "draw",
         draft: [],
         cursor: null,
+        roomDrag: null,
         selectedId: null,
         selectedVertex: null,
         selectedOpening: null,
@@ -733,6 +811,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         selectedVertex: null,
         selectedOpening: null,
         selectedId: null,
+        roomDrag: null,
         draft: [],
         cursor: null,
       });
@@ -992,6 +1071,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         draft: [],
         cursor: null,
         dragging: null,
+        roomDrag: null,
         placementDrag: null,
         openingDrag: null,
         selectedId: null,
@@ -1010,6 +1090,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         draft: [],
         cursor: null,
         dragging: null,
+        roomDrag: null,
         placementDrag: null,
         openingDrag: null,
         selectedId: null,
