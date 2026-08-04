@@ -24,6 +24,7 @@ function Row({ label, value }: { label: string; value: string }) {
 export function SelectionPanel() {
   const placements = useEditor((state) => state.scene.placements);
   const selectedId = useEditor((state) => state.selectedId);
+  const selectedIds = useEditor((state) => state.selectedIds);
   const rooms = useEditor((state) => state.scene.rooms);
 
   const selected = placements.find((p) => p.id === selectedId);
@@ -38,6 +39,27 @@ export function SelectionPanel() {
     }
     return { label: "Fits", tone: "text-zinc-500" };
   }, [selected, rooms, placements]);
+
+  if (selectedIds.size > 1) {
+    return (
+      <section className="space-y-2 border-b border-zinc-800 p-4">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Selection
+          </h2>
+          <span className="text-[10px] text-zinc-500">{selectedIds.size} items</span>
+        </div>
+        <button
+          type="button"
+          className={ACTION}
+          onClick={() => editor().deleteSelected()}
+        >
+          Delete selected
+        </button>
+        <p className="text-[10px] text-zinc-600">Shift-click furniture to add or remove it.</p>
+      </section>
+    );
+  }
 
   if (!selected || !item) return null;
 

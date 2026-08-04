@@ -507,6 +507,27 @@ export function removePlacement(
   };
 }
 
+export function removePlacements(
+  entries: readonly { placement: Placement; index: number }[],
+): Command {
+  const ids = new Set(entries.map(({ placement }) => placement.id));
+  const ordered = [...entries].sort((a, b) => a.index - b.index);
+  return {
+    label: `Delete ${entries.length} furniture items`,
+    do: (scene) => ({
+      ...scene,
+      placements: scene.placements.filter((placement) => !ids.has(placement.id)),
+    }),
+    undo: (scene) => {
+      const placements = [...scene.placements];
+      for (const entry of ordered) {
+        placements.splice(Math.min(entry.index, placements.length), 0, entry.placement);
+      }
+      return { ...scene, placements };
+    },
+  };
+}
+
 export function movePlacement(id: string, from: Vec3, to: Vec3): Command {
   const apply = (scene: Scene, position: Vec3): Scene => ({
     ...scene,

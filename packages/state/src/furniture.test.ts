@@ -639,3 +639,36 @@ describe("nudging", () => {
     expect(desk(s).position.x).toBeCloseTo(2);
   });
 });
+
+describe("multi-selection", () => {
+  it("adds and removes pieces with shift-style additive selection", () => {
+    const s = storeWithRoom();
+    s.getState().placeFurniture("desk");
+    s.getState().placeFurniture("dining-chair");
+    const [first, second] = s.getState().scene.placements;
+
+    s.getState().selectPlacement(first!.id);
+    s.getState().selectPlacement(second!.id, true);
+    expect(s.getState().selectedIds).toEqual(new Set([first!.id, second!.id]));
+
+    s.getState().selectPlacement(first!.id, true);
+    expect(s.getState().selectedIds).toEqual(new Set([second!.id]));
+    expect(s.getState().selectedId).toBe(second!.id);
+  });
+
+  it("deletes a group as one undoable action", () => {
+    const s = storeWithRoom();
+    s.getState().placeFurniture("desk");
+    s.getState().placeFurniture("dining-chair");
+    const ids = s.getState().scene.placements.map((placement) => placement.id);
+    s.getState().selectPlacement(ids[0]!);
+    s.getState().selectPlacement(ids[1]!, true);
+
+    s.getState().deleteSelected();
+    expect(s.getState().scene.placements).toHaveLength(0);
+    expect(s.getState().past.at(-1)?.label).toBe("Delete 2 furniture items");
+
+    s.getState().undo();
+    expect(s.getState().scene.placements.map((placement) => placement.id)).toEqual(ids);
+  });
+});

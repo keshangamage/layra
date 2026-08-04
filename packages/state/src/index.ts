@@ -15,6 +15,7 @@ export {
   moveVertex,
   removeOpening,
   removePlacement,
+  removePlacements,
   removeRoom,
   reorderRooms,
   removeVertex,

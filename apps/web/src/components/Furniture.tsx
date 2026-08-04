@@ -69,7 +69,7 @@ function Piece({ placement, selected, blocked, crowded, onGrab, onHover }: Piece
       onPointerOut={() => onHover(false)}
       onPointerDown={(event) => {
         event.stopPropagation();
-        editor().selectPlacement(placement.id);
+        editor().selectPlacement(placement.id, event.nativeEvent.shiftKey);
         onGrab(placement.id, event.nativeEvent);
       }}
     >
@@ -92,6 +92,7 @@ export function Furniture() {
   const roomDrag = useEditor((state) => state.roomDrag);
   const drag = useEditor((state) => state.placementDrag);
   const selectedId = useEditor((state) => state.selectedId);
+  const selectedIds = useEditor((state) => state.selectedIds);
   const groundAt = useGroundPointer();
   const [hovered, setHovered] = useState(false);
 
@@ -183,6 +184,7 @@ export function Furniture() {
   }, [hovered, isDragging]);
 
   const grab = (id: string, event: PointerEvent) => {
+    if (event.shiftKey) return;
     const point = groundAt(event);
     if (point) editor().beginPlacementDrag(id, point);
   };
@@ -199,7 +201,7 @@ export function Furniture() {
         <Piece
           key={placement.id}
           placement={placement}
-          selected={placement.id === selectedId}
+          selected={selectedIds.has(placement.id)}
           blocked={isBlocked(collisions, placement.id)}
           crowded={collisions.crowded.has(placement.id)}
           onGrab={grab}

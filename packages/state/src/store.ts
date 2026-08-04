@@ -25,6 +25,7 @@ import {
   rotateRoom,
   removeOpening,
   removePlacement,
+  removePlacements,
   removeRoom,
   reorderRooms,
   removeVertex,
@@ -178,7 +179,8 @@ export interface EditorState {
 
   /** Currently selected furniture, or null. */
   selectedId: string | null;
-  selectPlacement: (id: string | null) => void;
+  selectedIds: Set<string>;
+  selectPlacement: (id: string | null, additive?: boolean) => void;
   placeFurniture: (catalogItemId: string) => void;
   deleteSelected: () => void;
   rotateSelected: (radians: number) => void;
@@ -757,6 +759,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         cursor: null,
         roomDrag: null,
         selectedId: null,
+        selectedIds: new Set(),
         selectedVertex: null,
         selectedOpening: null,
         pendingOpening: null,
@@ -798,6 +801,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         draft: [],
         cursor: null,
         selectedId: null,
+        selectedIds: new Set(),
         selectedVertex: null,
         selectedOpening: null,
         pendingOpening: null,
@@ -846,6 +850,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         selectedVertex: null,
         selectedOpening: null,
         selectedId: null,
+        selectedIds: new Set(),
         roomDrag: null,
         draft: [],
         cursor: null,
@@ -919,6 +924,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     },
 
     selectedId: null,
+    selectedIds: new Set(),
     pendingFurniture: null,
     furnitureGhost: null,
 
@@ -956,6 +962,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         pendingFurniture: null,
         furnitureGhost: null,
         selectedId: placement.id,
+        selectedIds: new Set([placement.id]),
       });
       return true;
     },
@@ -980,10 +987,21 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         },
       };
       state.execute(addPlacement(copy, item.name));
-      set({ selectedId: copy.id });
+      set({ selectedId: copy.id, selectedIds: new Set([copy.id]) });
     },
 
-    selectPlacement: (selectedId) => set({ selectedId }),
+    selectPlacement: (selectedId, additive = false) =>
+      set((state) => {
+        if (!selectedId) return { selectedId: null, selectedIds: new Set<string>() };
+        if (!additive) return { selectedId, selectedIds: new Set([selectedId]) };
+        const selectedIds = new Set(state.selectedIds);
+        if (selectedIds.has(selectedId)) selectedIds.delete(selectedId);
+        else selectedIds.add(selectedId);
+        return {
+          selectedId: [...selectedIds].at(-1) ?? null,
+          selectedIds,
+        };
+      }),
 
     placeFurniture: (catalogItemId) => {
       const state = get();
@@ -1001,19 +1019,34 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         locked: false,
       };
       state.execute(addPlacement(placement, item.name));
-      set({ selectedId: placement.id });
+      set({ selectedId: placement.id, selectedIds: new Set([placement.id]) });
     },
 
     deleteSelected: () => {
       const state = get();
       if (activeRoomLocked(state)) return;
+      const selected = state.scene.placements.filter((placement) =>
+        state.selectedIds.has(placement.id),
+      );
+      if (selected.length > 1) {
+        const entries = selected
+          .map((placement) => ({
+            placement,
+            index: state.scene.placements.indexOf(placement),
+          }))
+          .filter(({ placement }) => !placement.locked);
+        if (entries.length === 0) return;
+        state.execute(removePlacements(entries));
+        set({ selectedId: null, selectedIds: new Set() });
+        return;
+      }
       const index = state.scene.placements.findIndex((p) => p.id === state.selectedId);
       const placement = state.scene.placements[index];
       if (!placement || placement.locked) return;
 
       const item = findCatalogItem(placement.catalogItemId);
       state.execute(removePlacement(placement, index, item?.name ?? "furniture"));
-      set({ selectedId: null });
+      set({ selectedId: null, selectedIds: new Set() });
     },
 
     setSelectedRotation: (radians) => {
@@ -1147,6 +1180,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         placementDrag: null,
         openingDrag: null,
         selectedId: null,
+        selectedIds: new Set(),
         selectedOpening: null,
         pendingOpening: null,
         measure: { from: null, to: null },
@@ -1167,6 +1201,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         placementDrag: null,
         openingDrag: null,
         selectedId: null,
+        selectedIds: new Set(),
         selectedVertex: null,
         pendingOpening: null,
         pendingFurniture: null,
