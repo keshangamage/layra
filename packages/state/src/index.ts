@@ -5,10 +5,13 @@ export {
   addOpening,
   addPlacement,
   addRoom,
+  duplicateRoom,
   addVertex,
   closeRoom,
   loadScene,
   movePlacement,
+  moveRoom,
+  rotateRoom,
   moveVertex,
   removeOpening,
   removePlacement,
@@ -49,6 +52,7 @@ export {
   findCollisions,
   isBlocked,
   placementRect,
+  placementsInRoom,
   type CollisionReport,
 } from "./collision";
 
