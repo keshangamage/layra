@@ -24,7 +24,7 @@ export function CatalogPanel() {
     <section className="border-b border-zinc-800 p-4">
       <div className="flex items-baseline justify-between">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Furniture
+          Furniture & decor
         </h2>
         {blocked > 0 && (
           <span className="text-[10px] font-medium text-red-400">

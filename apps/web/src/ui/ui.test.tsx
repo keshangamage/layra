@@ -52,6 +52,7 @@ afterEach(() => {
     past: [],
     future: [],
     mode: "draw",
+    walking: false,
     draft: [],
     cursor: null,
     dragging: null,
@@ -101,6 +102,27 @@ describe("Toolbar", () => {
 
     drawRoom();
     expect(edit.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("offers wall drawing before a room exists", () => {
+    render(<Toolbar />);
+    const wall = screen.getByRole("button", { name: "wall" });
+
+    expect(wall.hasAttribute("disabled")).toBe(false);
+    fireEvent.click(wall);
+    expect(editorStore.getState().mode).toBe("wall");
+    expect(screen.getByText("Click two points to draw a wall · Esc to cancel")).toBeDefined();
+  });
+
+  it("toggles walkthrough mode when a room exists", () => {
+    drawRoom();
+    render(<Toolbar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Walk" }));
+    expect(editorStore.getState().walking).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Walk" }));
+    expect(editorStore.getState().walking).toBe(false);
   });
 });
 

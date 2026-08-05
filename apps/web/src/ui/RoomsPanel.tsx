@@ -69,7 +69,7 @@ export function RoomsPanel() {
                   <span onDoubleClick={() => setEditing(index)}>{room.name}</span>
                   <span className="flex items-baseline gap-2">
                     <span className="font-mono text-[10px] text-zinc-600">
-                      {room.polygon.length >= 3 ? `${room.walls.length} walls` : "empty"}
+                      {room.walls.length > 0 ? `${room.walls.length} wall${room.walls.length === 1 ? "" : "s"}` : "empty"}
                     </span>
                     {overlapIds.has(room.id) && (
                       <span
