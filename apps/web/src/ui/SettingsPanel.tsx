@@ -39,6 +39,7 @@ export function SettingsPanel() {
   const height = useEditor((state) => currentWallSettings(state).height);
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
   const locked = useEditor((state) => state.scene.rooms[state.activeRoomIndex]?.locked === true);
+  const lightingPreset = useEditor((state) => state.lightingPreset);
 
   return (
     <section className="space-y-4 border-b border-zinc-800 p-4">
@@ -63,6 +64,30 @@ export function SettingsPanel() {
         onChange={(value) => editor().applyWallSettings({ thickness: value })}
         disabled={locked}
       />
+      <div className="border-t border-zinc-800 pt-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Lighting
+        </h2>
+        <div className="mt-2 grid grid-cols-3 gap-1">
+          {(["daylight", "warm", "studio"] as const).map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => editor().setLightingPreset(preset)}
+              className={`rounded px-1 py-1.5 text-[10px] font-medium capitalize transition-colors ${
+                lightingPreset === preset
+                  ? "bg-amber-600 text-white"
+                  : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              {preset}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-[10px] text-zinc-600">
+          Choose the mood for the 3D preview.
+        </p>
+      </div>
     </section>
   );
 }

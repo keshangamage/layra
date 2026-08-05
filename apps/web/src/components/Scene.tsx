@@ -20,6 +20,7 @@ import { CameraRig } from "./CameraRig";
 import { Openings } from "./Openings";
 import { Dimensions } from "./Dimensions";
 import { MeasureTool } from "./MeasureTool";
+import { RoomTrim } from "./RoomTrim";
 
 /** The room being edited, which follows an in-progress vertex drag. */
 function ActiveRoom() {
@@ -79,7 +80,8 @@ function ActiveRoom() {
           event.stopPropagation();
           editor().addVertexAt({ x: event.point.x, z: event.point.z });
         }}
-      />
+        />
+      <RoomTrim walls={walls} />
     </>
   );
 }
@@ -122,6 +124,7 @@ function OtherRooms() {
               thickness={thickness}
               openings={room.walls.map((wall) => wall.openings)}
             />
+            <RoomTrim walls={room.walls} />
           </group>
         );
       })}
@@ -145,6 +148,42 @@ export default function Scene() {
 
   // Frame the shadow camera to the room so shadows stay sharp.
   const shadowRadius = Math.max(extent.size.x, extent.size.z, 4);
+  const lightingPreset = useEditor((state) => state.lightingPreset);
+  const lighting = {
+    daylight: {
+      ambient: 0.6,
+      key: 2,
+      keyColor: "#fff7ed",
+      keyPosition: [6, 10, 4] as [number, number, number],
+      fill: 0,
+      fillColor: "#ffffff",
+      point: 0,
+      pointColor: "#ffffff",
+      background: "#18181b",
+    },
+    warm: {
+      ambient: 0.32,
+      key: 1.05,
+      keyColor: "#ffd6a3",
+      keyPosition: [-4, 7, 3] as [number, number, number],
+      fill: 0.25,
+      fillColor: "#fda4af",
+      point: 1.1,
+      pointColor: "#ffb45b",
+      background: "#211b1a",
+    },
+    studio: {
+      ambient: 0.75,
+      key: 1.55,
+      keyColor: "#e0f2fe",
+      keyPosition: [5, 8, 5] as [number, number, number],
+      fill: 0.85,
+      fillColor: "#c4b5fd",
+      point: 0,
+      pointColor: "#ffffff",
+      background: "#172033",
+    },
+  }[lightingPreset];
 
   useEffect(() => {
     if (!contextLost || attempts.current >= MAX_RECOVERY_ATTEMPTS) return;
@@ -197,17 +236,18 @@ export default function Scene() {
       // "percentage" is PCFShadowMap; the default maps to the deprecated PCFSoftShadowMap.
       shadows="percentage"
       camera={{ position: [7, 6, 8], fov: 45, near: 0.1, far: 200 }}
-      className="bg-zinc-900"
+      style={{ background: lighting.background }}
       // Fires only when a click hit no mesh, unlike a raw canvas pointerup.
       onPointerMissed={() => {
         editor().selectPlacement(null);
         editor().selectVertex(null);
       }}
     >
-      <ambientLight intensity={0.6} />
+      <ambientLight intensity={lighting.ambient} />
       <directionalLight
-        position={[6, 10, 4]}
-        intensity={2}
+        position={lighting.keyPosition}
+        intensity={lighting.key}
+        color={lighting.keyColor}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-shadowRadius}
@@ -216,6 +256,18 @@ export default function Scene() {
         shadow-camera-bottom={-shadowRadius}
         shadow-camera-near={0.1}
         shadow-camera-far={40}
+      />
+      <directionalLight
+        position={[-6, 5, -4]}
+        intensity={lighting.fill}
+        color={lighting.fillColor}
+      />
+      <pointLight
+        position={[extent.center.x, 3.5, extent.center.z]}
+        intensity={lighting.point}
+        color={lighting.pointColor}
+        distance={Math.max(extent.size.x, extent.size.z, 5) * 2}
+        decay={2}
       />
 
       <OtherRooms />

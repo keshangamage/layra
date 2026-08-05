@@ -282,6 +282,38 @@ describe("moving a room", () => {
     expect(s.getState().past.at(-1)?.label).toBe("Move Room 1");
   });
 
+  it("moves wall-mounted furniture with the room", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("wall-shelf");
+    s.getState().placeFurnitureAt({ x: 2, z: 0.1 });
+    const before = s.getState().scene.placements[0]!.position;
+
+    s.getState().moveActiveRoom(1, -0.5);
+
+    expect(s.getState().scene.placements[0]?.position).toEqual({
+      x: before.x + 1,
+      y: before.y,
+      z: before.z - 0.5,
+    });
+  });
+
+  it("moves furniture whose footprint touches a wall with the room", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("sofa-3");
+    s.getState().placeFurnitureAt({ x: 0.75, z: 1.5 }, true);
+    const before = s.getState().scene.placements[0]!.position;
+
+    expect(placementsInRoom(rooms(s)[0]!, s.getState().scene.placements)).toHaveLength(1);
+
+    s.getState().moveActiveRoom(1, -0.5);
+
+    expect(s.getState().scene.placements[0]?.position).toEqual({
+      x: before.x + 1,
+      y: before.y,
+      z: before.z - 0.5,
+    });
+  });
+
   it("undoes and redoes the complete translation", () => {
     const s = storeWithRoom();
     const before = s.getState().scene.rooms[0]?.polygon;

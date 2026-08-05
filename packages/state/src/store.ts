@@ -49,6 +49,8 @@ import { placementsInRoom } from "./collision";
 
 export type Mode = "draw" | "edit" | "measure";
 
+export type LightingPreset = "daylight" | "warm" | "studio";
+
 export type ViewKind = "top" | "iso" | "fit";
 
 /** The nonce lets the same view be requested twice in a row. */
@@ -149,6 +151,8 @@ export interface EditorState {
   /** Wall length labels. */
   showDimensions: boolean;
   toggleDimensions: () => void;
+  lightingPreset: LightingPreset;
+  setLightingPreset: (preset: LightingPreset) => void;
 
   /** Armed opening type; the next wall click places one. */
   pendingOpening: OpeningType | null;
@@ -407,6 +411,8 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
     measure: { from: null, to: null },
     showDimensions: true,
+    lightingPreset: "daylight",
+    setLightingPreset: (lightingPreset) => set({ lightingPreset }),
     view: null,
 
     requestView: (kind) =>
