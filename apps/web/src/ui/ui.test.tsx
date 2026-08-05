@@ -57,6 +57,7 @@ afterEach(() => {
     dragging: null,
     wallDefaults: DEFAULT_WALLS,
     snap: DEFAULT_SNAP,
+    lightingPreset: "daylight",
   });
 });
 
@@ -125,6 +126,16 @@ describe("SettingsPanel", () => {
 
     run(() => editorStore.getState().undo());
     expect(thickness.value).toBe("0.2");
+  });
+
+  it("switches the preview lighting mood without adding history", () => {
+    render(<SettingsPanel />);
+    const before = editorStore.getState().past.length;
+
+    fireEvent.click(screen.getByRole("button", { name: "warm" }));
+
+    expect(editorStore.getState().lightingPreset).toBe("warm");
+    expect(editorStore.getState().past).toHaveLength(before);
   });
 });
 

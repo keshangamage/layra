@@ -75,6 +75,7 @@ export {
   type EditorState,
   type EditorStore,
   type Mode,
+  type LightingPreset,
   type OpeningShape,
   type ViewKind,
   type ViewRequest,

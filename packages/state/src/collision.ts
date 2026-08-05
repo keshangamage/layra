@@ -116,7 +116,7 @@ export function findCollisions(
 }
 
 /**
- * Placements whose footprint sits inside a room.
+ * Placements whose anchor point sits inside a room.
  *
  * Ownership is derived from geometry rather than stored on the placement, so
  * dragging a piece from one room to another needs no bookkeeping.
@@ -128,10 +128,12 @@ export function placementsInRoom(
   if (room.polygon.length < 3) return [];
   const { inner } = wallLoops(room.polygon, room.walls[0]?.thickness ?? 0);
 
-  return placements.filter((placement) => {
-    const rect = placementRect(placement);
-    return rect ? polygonContains(rectCorners(rect), inner) : false;
-  });
+  return placements.filter((placement) =>
+    pointInPolygon(
+      { x: placement.position.x, z: placement.position.z },
+      inner,
+    ),
+  );
 }
 
 function polygonsOverlap(a: Room, b: Room): boolean {
