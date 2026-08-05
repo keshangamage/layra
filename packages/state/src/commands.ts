@@ -84,6 +84,33 @@ export function closeRoom(
   };
 }
 
+export function closeWall(
+  index: number,
+  start: Vec2,
+  end: Vec2,
+  settings: WallSettings,
+  from: Room,
+): Command {
+  const wall: Wall = {
+    id: `w${from.walls.length}`,
+    start,
+    end,
+    height: settings.height,
+    thickness: settings.thickness,
+    openings: [],
+  };
+  const next: Room = {
+    ...from,
+    polygon: [],
+    walls: [...from.walls, wall],
+  };
+  return {
+    label: "Draw wall",
+    do: (scene) => withRoom(scene, index, next),
+    undo: (scene) => withRoom(scene, index, from),
+  };
+}
+
 /** Rebuilds walls for a new polygon, carrying openings across by wall index. */
 function roomWithOpenings(
   polygon: readonly Vec2[],

@@ -41,6 +41,19 @@ describe("draft lifecycle", () => {
     expect(store.getState().past).toHaveLength(0);
   });
 
+  it("closes exactly two points into a wall in wall mode", () => {
+    const store = createEditorStore();
+    store.getState().setMode("wall");
+    store.getState().addDraftPoint({ x: 0, z: 0 });
+    store.getState().addDraftPoint({ x: 3, z: 0 });
+
+    expect(store.getState().closeDraft()).toBe(true);
+    expect(activeRoom(store.getState()).polygon).toHaveLength(0);
+    expect(activeRoom(store.getState()).walls).toHaveLength(1);
+    expect(store.getState().mode).toBe("edit");
+    expect(store.getState().past.at(-1)?.label).toBe("Draw wall");
+  });
+
   it("refuses to close a self-intersecting draft", () => {
     const store = createEditorStore();
     for (const point of [

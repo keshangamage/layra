@@ -23,6 +23,7 @@ interface Controls {
 export function CameraRig() {
   const view = useEditor((state) => state.view);
   const polygon = useEditor((state) => activeRoom(state).polygon);
+  const activeWalls = useEditor((state) => activeRoom(state).walls);
   const rooms = useEditor((state) => state.scene.rooms);
   const showOtherRooms = useEditor((state) => state.showOtherRooms);
   const hiddenRoomIds = useEditor((state) => state.hiddenRoomIds);
@@ -34,12 +35,19 @@ export function CameraRig() {
   useEffect(() => {
     if (!view || !controls || !(camera instanceof PerspectiveCamera)) return;
 
+    const activePoints = polygon.length > 0
+      ? polygon
+      : activeWalls.flatMap((wall) => [wall.start, wall.end]);
     const points =
       view.kind === "fit" && showOtherRooms
         ? rooms
             .filter((room, index) => index === activeRoomIndex || !hiddenRoomIds.has(room.id))
-            .flatMap((room) => room.polygon)
-        : polygon;
+            .flatMap((room) =>
+              room.polygon.length > 0
+                ? room.polygon
+                : room.walls.flatMap((wall) => [wall.start, wall.end]),
+            )
+        : activePoints;
     const extent = bounds(points);
     // An empty scene still needs something to frame.
     const span = {
@@ -60,7 +68,7 @@ export function CameraRig() {
     camera.updateProjectionMatrix();
     controls.update();
     // Keyed on the nonce, so asking for the same view twice still fires.
-  }, [view, controls, camera, polygon, rooms, showOtherRooms, hiddenRoomIds, activeRoomIndex, size]);
+  }, [view, controls, camera, polygon, activeWalls, rooms, showOtherRooms, hiddenRoomIds, activeRoomIndex, size]);
 
   return null;
 }

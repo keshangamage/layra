@@ -8,6 +8,7 @@ export {
   duplicateRoom,
   addVertex,
   closeRoom,
+  closeWall,
   loadScene,
   movePlacement,
   moveRoom,

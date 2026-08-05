@@ -34,7 +34,7 @@ export function DrawController() {
     let pressY = 0;
 
     const onPointerMove = (event: PointerEvent) => {
-      if (editor().mode !== "draw") return;
+      if (editor().mode !== "draw" && editor().mode !== "wall") return;
       const raw = groundAt(event);
       editor().setCursor(raw ? snapped(raw) : null);
     };
@@ -46,7 +46,7 @@ export function DrawController() {
 
     const onPointerUp = (event: PointerEvent) => {
       const state = editor();
-      if (state.mode !== "draw" || event.button !== 0) return;
+      if ((state.mode !== "draw" && state.mode !== "wall") || event.button !== 0) return;
       // Let OrbitControls keep the left button for orbiting.
       if (Math.hypot(event.clientX - pressX, event.clientY - pressY) > CLICK_SLOP) return;
 
@@ -58,13 +58,17 @@ export function DrawController() {
         state.closeDraft();
         return;
       }
-      state.addDraftPoint(snapped(raw));
+      const point = snapped(raw);
+      state.addDraftPoint(point);
+      if (state.mode === "wall" && state.draft.length === 1) {
+        state.closeDraft();
+      }
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
-      if (editor().mode !== "draw") return;
+      if (editor().mode !== "draw" && editor().mode !== "wall") return;
 
       if (event.key === "Enter") {
         event.preventDefault();

@@ -8,7 +8,10 @@ import { FileActions } from "./FileActions";
 export function Toolbar() {
   const mode = useEditor((state) => state.mode);
   const draftCount = useEditor((state) => state.draft.length);
-  const hasRoom = useEditor((state) => activeRoom(state).polygon.length >= 3);
+  const activeRoomPolygonLength = useEditor((state) => activeRoom(state).polygon.length);
+  const hasRoom = activeRoomPolygonLength >= 3;
+  const canDrawWall = activeRoomPolygonLength < 3;
+  const walking = useEditor((state) => state.walking);
 
   const hint =
     mode === "draw"
@@ -17,7 +20,9 @@ export function Toolbar() {
         : draftCount < 3
           ? `${draftCount} placed · keep clicking`
           : "Enter or click the first corner to close · Esc to cancel"
-      : mode === "edit"
+      : mode === "wall"
+        ? "Click two points to draw a wall · Esc to cancel"
+        : mode === "edit"
         ? "Drag a corner to reshape · double-click a wall to add one · Delete removes"
         : "Click two points to measure - Esc clears";
 
@@ -26,11 +31,11 @@ export function Toolbar() {
       <span className="text-sm font-semibold tracking-tight text-zinc-100">Layra</span>
 
       <div className="flex items-center gap-1 rounded-md bg-zinc-900 p-0.5">
-        {(["draw", "edit", "measure"] as const).map((value) => (
+        {(["draw", "wall", "edit", "measure"] as const).map((value) => (
           <button
             key={value}
             type="button"
-            disabled={value !== "draw" && !hasRoom}
+            disabled={value === "wall" ? !canDrawWall : value !== "draw" && !hasRoom}
             onClick={() => editor().setMode(value as Mode)}
             className={`rounded px-3 py-1 text-xs font-medium capitalize transition-colors disabled:opacity-30 ${
               mode === value
@@ -62,6 +67,20 @@ export function Toolbar() {
           </button>
         ))}
       </div>
+
+      <button
+        type="button"
+        disabled={!hasRoom}
+        onClick={() => editor().setWalking(!walking)}
+        className={`rounded px-2 py-1 text-xs font-medium transition-colors disabled:opacity-30 ${
+          walking
+            ? "bg-amber-600 text-white"
+            : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+        }`}
+        title="Walk through the active room"
+      >
+        Walk
+      </button>
 
       <FileActions />
 

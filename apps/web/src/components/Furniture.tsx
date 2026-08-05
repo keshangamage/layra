@@ -32,23 +32,25 @@ function Box({
   size,
   position,
   color,
+  metalness = 0,
 }: {
   size: [number, number, number];
   position: [number, number, number];
   color: string;
+  metalness?: number;
 }) {
   return (
     <mesh position={position} castShadow receiveShadow>
       <boxGeometry args={size} />
-      <meshStandardMaterial color={color} roughness={0.7} metalness={0} />
+      <meshStandardMaterial color={color} roughness={0.7} metalness={metalness} />
     </mesh>
   );
 }
 
-function Leg({ position, color = "#3f3028" }: { position: [number, number, number]; color?: string }) {
+function Leg({ position, height = 0.65, color = "#3f3028" }: { position: [number, number, number]; height?: number; color?: string }) {
   return (
     <mesh position={position} castShadow>
-      <cylinderGeometry args={[0.035, 0.045, 0.65, 8]} />
+      <cylinderGeometry args={[0.035, 0.045, height, 8]} />
       <meshStandardMaterial color={color} roughness={0.65} />
     </mesh>
   );
@@ -156,6 +158,245 @@ function FurnitureModel({ item }: { item: NonNullable<ReturnType<typeof findCata
         <group>
           <Box size={[w, 0.08, d]} position={[0, h * 0.5, 0]} color={wood} />
           <Box size={[w * 0.75, 0.05, 0.05]} position={[0, h * 0.35, d / 2 - 0.02]} color={darkWood} />
+        </group>
+      );
+    case "coffee-table":
+      return (
+        <group>
+          <Box size={[w, 0.1, d]} position={[0, h - 0.05, 0]} color={wood} />
+          {[-1, 1].flatMap((x) => [-1, 1].map((z) => (
+            <Leg
+              key={`${x}-${z}`}
+              height={h - 0.1}
+              position={[x * (w / 2 - 0.1), (h - 0.1) / 2, z * (d / 2 - 0.1)]}
+              color={darkWood}
+            />
+          )))}
+        </group>
+      );
+    case "tv-stand":
+      return (
+        <group>
+          <Box size={[w, h * 0.78, d]} position={[0, h * 0.39, 0]} color={darkWood} />
+          <Box size={[w - 0.08, 0.06, d + 0.03]} position={[0, h * 0.8, 0]} color={wood} />
+          <Box size={[w * 0.65, h * 0.58, 0.035]} position={[0, h * 0.58, -d / 2 - 0.025]} color="#171717" />
+          <Box size={[w * 0.6, h * 0.5, 0.02]} position={[0, h * 0.58, -d / 2 - 0.05]} color="#334155" />
+          <Box size={[0.04, 0.04, 0.04]} position={[-w * 0.3, h * 0.35, -d / 2 - 0.03]} color={metal} />
+          <Box size={[0.04, 0.04, 0.04]} position={[w * 0.3, h * 0.35, -d / 2 - 0.03]} color={metal} />
+        </group>
+      );
+    case "floor-lamp":
+      return (
+        <group>
+          <mesh position={[0, 0.025, 0]} castShadow>
+            <cylinderGeometry args={[0.15, 0.18, 0.05, 16]} />
+            <meshStandardMaterial color={metal} metalness={0.65} roughness={0.3} />
+          </mesh>
+          <mesh position={[0, h * 0.5, 0]} castShadow>
+            <cylinderGeometry args={[0.025, 0.025, h - 0.2, 10]} />
+            <meshStandardMaterial color={metal} metalness={0.75} roughness={0.25} />
+          </mesh>
+          <mesh position={[0, h - 0.12, 0]} castShadow>
+            <coneGeometry args={[0.18, 0.24, 16, 1, true]} />
+            <meshStandardMaterial color="#d8b68a" roughness={0.8} side={2} />
+          </mesh>
+        </group>
+      );
+    case "plant":
+      return (
+        <group>
+          <mesh position={[0, 0.16, 0]} castShadow>
+            <cylinderGeometry args={[0.16, 0.12, 0.3, 12]} />
+            <meshStandardMaterial color="#b45335" roughness={0.8} />
+          </mesh>
+          <mesh position={[0, 0.72, 0]} castShadow>
+            <cylinderGeometry args={[0.025, 0.035, 0.95, 8]} />
+            <meshStandardMaterial color="#365b3d" roughness={0.9} />
+          </mesh>
+          {([
+            [-0.13, 0.82, 0.02, 0.45, 0.12, 0.18],
+            [0.13, 0.96, -0.02, 0.4, 0.11, 0.16],
+            [-0.08, 1.08, 0.03, 0.35, 0.1, 0.15],
+            [0.08, 1.16, -0.02, 0.3, 0.09, 0.14],
+          ] as [number, number, number, number, number, number][]).map(([x, y, z, sx, sy, sz], index) => (
+            <mesh key={index} position={[x, y, z]} scale={[sx, sy, sz]} castShadow>
+              <sphereGeometry args={[1, 10, 8]} />
+              <meshStandardMaterial color={index % 2 ? "#4f7f52" : "#668d5a"} roughness={0.9} />
+            </mesh>
+          ))}
+        </group>
+      );
+    case "rug":
+      return (
+        <group>
+          <Box size={[w, h, d]} position={[0, h / 2, 0]} color="#9a7b62" />
+          <Box size={[w - 0.12, 0.008, 0.035]} position={[0, h + 0.006, -d / 2 + 0.07]} color="#d2b48c" />
+          <Box size={[w - 0.12, 0.008, 0.035]} position={[0, h + 0.006, d / 2 - 0.07]} color="#d2b48c" />
+          <Box size={[0.035, 0.008, d - 0.12]} position={[-w / 2 + 0.07, h + 0.006, 0]} color="#d2b48c" />
+          <Box size={[0.035, 0.008, d - 0.12]} position={[w / 2 - 0.07, h + 0.006, 0]} color="#d2b48c" />
+        </group>
+      );
+    case "kitchen-island":
+      return (
+        <group>
+          <Box size={[w, h - 0.12, d]} position={[0, (h - 0.12) / 2, 0]} color="#d6c7b2" />
+          <Box size={[w + 0.08, 0.12, d + 0.08]} position={[0, h - 0.06, 0]} color="#8b6a4d" />
+          <Box size={[w * 0.35, 0.018, d * 0.5]} position={[-w * 0.2, h + 0.004, 0]} color="#475569" />
+          <Box size={[w * 0.35, 0.018, d * 0.5]} position={[w * 0.2, h + 0.004, 0]} color="#475569" />
+          <Box size={[0.035, 0.035, 0.035]} position={[-w * 0.25, h * 0.45, -d / 2 - 0.02]} color={metal} />
+          <Box size={[0.035, 0.035, 0.035]} position={[w * 0.25, h * 0.45, -d / 2 - 0.02]} color={metal} />
+        </group>
+      );
+    case "nightstand":
+      return (
+        <group>
+          <Box size={[w, h * 0.82, d]} position={[0, h * 0.41, 0]} color={wood} />
+          <Box size={[w + 0.04, 0.07, d + 0.04]} position={[0, h * 0.85, 0]} color={darkWood} />
+          <Box size={[w * 0.65, 0.04, 0.02]} position={[0, h * 0.55, -d / 2 - 0.025]} color={metal} metalness={0.65} />
+          <Leg position={[-w / 2 + 0.06, 0.05, -d / 2 + 0.06]} height={0.1} />
+          <Leg position={[w / 2 - 0.06, 0.05, -d / 2 + 0.06]} height={0.1} />
+        </group>
+      );
+    case "dresser":
+      return (
+        <group>
+          <Box size={[w, h, d]} position={[0, h / 2, 0]} color={wood} />
+          {[0.24, 0.48, 0.72].map((y) => (
+            <group key={y}>
+              <Box size={[w - 0.08, 0.018, 0.02]} position={[0, y, -d / 2 - 0.025]} color={darkWood} />
+              <mesh position={[0, y + 0.04, -d / 2 - 0.04]}>
+                <sphereGeometry args={[0.025, 10, 8]} />
+                <meshStandardMaterial color={metal} metalness={0.7} roughness={0.3} />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      );
+    case "bench":
+      return (
+        <group>
+          <Box size={[w, 0.16, d]} position={[0, h - 0.08, 0]} color={fabric} />
+          {[-1, 1].flatMap((x) => [-1, 1].map((z) => (
+            <Leg key={`${x}-${z}`} height={h - 0.16} position={[x * (w / 2 - 0.12), (h - 0.16) / 2, z * (d / 2 - 0.1)]} />
+          )))}
+        </group>
+      );
+    case "ottoman":
+      return (
+        <group>
+          <Box size={[w, h * 0.82, d]} position={[0, h * 0.41, 0]} color="#8c6f5a" />
+          <Box size={[w - 0.08, 0.08, d - 0.08]} position={[0, h * 0.86, 0]} color="#b99a7d" />
+          <Leg position={[-w / 2 + 0.1, 0.05, -d / 2 + 0.1]} height={0.1} />
+          <Leg position={[w / 2 - 0.1, 0.05, -d / 2 + 0.1]} height={0.1} />
+        </group>
+      );
+    case "toilet":
+      return (
+        <group>
+          <mesh position={[0, 0.22, 0.04]} castShadow>
+            <cylinderGeometry args={[0.2, 0.17, 0.44, 16]} />
+            <meshStandardMaterial color="#e7e5e4" roughness={0.25} />
+          </mesh>
+          <mesh position={[0, 0.49, 0.04]} castShadow>
+            <cylinderGeometry args={[0.2, 0.2, 0.07, 16]} />
+            <meshStandardMaterial color="#d6d3d1" roughness={0.3} />
+          </mesh>
+          <Box size={[0.34, 0.55, 0.16]} position={[0, 0.48, -d / 2 + 0.08]} color="#f5f5f4" />
+          <Box size={[0.28, 0.025, 0.03]} position={[0, h - 0.03, -d / 2 - 0.02]} color={metal} metalness={0.7} />
+        </group>
+      );
+    case "bathtub":
+      return (
+        <group>
+          <Box size={[w, 0.48, d]} position={[0, 0.24, 0]} color="#f5f5f4" />
+          <Box size={[w - 0.14, 0.08, d - 0.14]} position={[0, 0.5, 0]} color="#bae6fd" />
+          <Box size={[w + 0.04, 0.08, d + 0.04]} position={[0, 0.52, 0]} color="#d6d3d1" />
+          <Box size={[0.03, 0.03, 0.03]} position={[w * 0.32, 0.58, -d * 0.25]} color={metal} metalness={0.8} />
+        </group>
+      );
+    case "wall-mirror":
+      return (
+        <group>
+          <Box size={[w, h, 0.05]} position={[0, 0, 0]} color={darkWood} />
+          <Box size={[w - 0.1, h - 0.1, 0.02]} position={[0, 0, 0.04]} color="#bfdbfe" />
+        </group>
+      );
+    case "refrigerator":
+      return (
+        <group>
+          <Box size={[w, h, d]} position={[0, h / 2, 0]} color="#cbd5e1" metalness={0.55} />
+          <Box size={[w - 0.06, h * 0.52, 0.025]} position={[0, h * 0.68, -d / 2 - 0.025]} color="#e2e8f0" metalness={0.35} />
+          <Box size={[w - 0.06, h * 0.36, 0.025]} position={[0, h * 0.22, -d / 2 - 0.025]} color="#e2e8f0" metalness={0.35} />
+          <Box size={[0.035, h * 0.34, 0.035]} position={[w * 0.32, h * 0.68, -d / 2 - 0.06]} color={metal} metalness={0.8} />
+          <Box size={[0.035, h * 0.25, 0.035]} position={[w * 0.32, h * 0.22, -d / 2 - 0.06]} color={metal} metalness={0.8} />
+        </group>
+      );
+    case "stove":
+      return (
+        <group>
+          <Box size={[w, h - 0.1, d]} position={[0, (h - 0.1) / 2, 0]} color="#52525b" metalness={0.5} />
+          <Box size={[w + 0.04, 0.08, d + 0.04]} position={[0, h - 0.04, 0]} color="#27272a" metalness={0.4} />
+          {[-1, 1].flatMap((x) => [-1, 1].map((z) => (
+            <mesh key={`${x}-${z}`} position={[x * w * 0.24, h + 0.01, z * d * 0.22]} castShadow>
+              <cylinderGeometry args={[0.1, 0.1, 0.018, 16]} />
+              <meshStandardMaterial color="#18181b" metalness={0.5} />
+            </mesh>
+          )))}
+          <Box size={[w * 0.6, 0.06, 0.025]} position={[0, h * 0.58, -d / 2 - 0.03]} color="#a1a1aa" metalness={0.65} />
+        </group>
+      );
+    case "kitchen-sink":
+      return (
+        <group>
+          <Box size={[w, h - 0.1, d]} position={[0, (h - 0.1) / 2, 0]} color="#d6c7b2" />
+          <Box size={[w + 0.04, 0.1, d + 0.04]} position={[0, h - 0.05, 0]} color="#a8a29e" metalness={0.55} />
+          <Box size={[w * 0.58, 0.04, d * 0.58]} position={[0, h + 0.01, 0]} color="#52525b" metalness={0.6} />
+          <mesh position={[0, h + 0.14, -d * 0.18]} castShadow>
+            <torusGeometry args={[0.09, 0.018, 8, 16, Math.PI]} />
+            <meshStandardMaterial color={metal} metalness={0.8} roughness={0.25} />
+          </mesh>
+          <Box size={[0.035, 0.035, 0.035]} position={[w * 0.3, h + 0.03, -d * 0.28]} color={metal} metalness={0.8} />
+        </group>
+      );
+    case "shower":
+      return (
+        <group>
+          <Box size={[w, 0.06, d]} position={[0, 0.03, 0]} color="#d6d3d1" />
+          <Box size={[w - 0.1, 0.035, d - 0.1]} position={[0, 0.065, 0]} color="#bae6fd" />
+          {[-1, 1].map((x) => (
+            <mesh key={x} position={[x * (w / 2 - 0.04), h / 2, d / 2 - 0.04]} castShadow>
+              <cylinderGeometry args={[0.025, 0.025, h, 10]} />
+              <meshStandardMaterial color={metal} metalness={0.7} roughness={0.25} />
+            </mesh>
+          ))}
+          <Box size={[w, 0.035, 0.035]} position={[0, h - 0.02, d / 2 - 0.04]} color={metal} metalness={0.7} />
+          <mesh position={[0, h - 0.22, -d * 0.2]} castShadow>
+            <sphereGeometry args={[0.08, 12, 8]} />
+            <meshStandardMaterial color="#dbeafe" metalness={0.3} roughness={0.2} />
+          </mesh>
+        </group>
+      );
+    case "console-table":
+      return (
+        <group>
+          <Box size={[w, 0.12, d]} position={[0, h - 0.06, 0]} color={wood} />
+          {[-1, 1].flatMap((x) => [-1, 1].map((z) => (
+            <Leg key={`${x}-${z}`} height={h - 0.12} position={[x * (w / 2 - 0.1), (h - 0.12) / 2, z * (d / 2 - 0.07)]} color={darkWood} />
+          )))}
+          <Box size={[w * 0.55, 0.08, 0.025]} position={[0, h * 0.42, d / 2 - 0.02]} color={darkWood} />
+        </group>
+      );
+    case "beanbag":
+      return (
+        <group>
+          <mesh position={[0, h * 0.45, 0]} scale={[w * 0.55, h * 0.75, d * 0.55]} castShadow receiveShadow>
+            <sphereGeometry args={[1, 18, 12]} />
+            <meshStandardMaterial color="#a8555a" roughness={0.95} />
+          </mesh>
+          <mesh position={[0, h * 0.88, -d * 0.08]} scale={[w * 0.28, 0.08, d * 0.2]} castShadow>
+            <sphereGeometry args={[1, 14, 8]} />
+            <meshStandardMaterial color="#c26b6b" roughness={0.95} />
+          </mesh>
         </group>
       );
     default:

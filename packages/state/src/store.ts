@@ -19,6 +19,7 @@ import {
   duplicateRoom,
   addVertex,
   closeRoom,
+  closeWall,
   loadScene,
   moveVertex,
   moveRoom,
@@ -47,7 +48,7 @@ import { clampOpening, sameOpening } from "./openings";
 import { mountToWall, snapFloorToWall } from "./mounting";
 import { placementsInRoom } from "./collision";
 
-export type Mode = "draw" | "edit" | "measure";
+export type Mode = "draw" | "wall" | "edit" | "measure";
 
 export type LightingPreset = "daylight" | "warm" | "studio";
 
@@ -79,6 +80,7 @@ export interface EditorState {
   past: Command[];
   future: Command[];
   mode: Mode;
+  walking: boolean;
 
   /** Vertices placed so far in draw mode. */
   draft: Vec2[];
@@ -101,6 +103,7 @@ export interface EditorState {
   redo: () => void;
 
   setMode: (mode: Mode) => void;
+  setWalking: (walking: boolean) => void;
   addDraftPoint: (point: Vec2) => void;
   setCursor: (point: Vec2 | null) => void;
   cancelDraft: () => void;
@@ -304,6 +307,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     past: [],
     future: [],
     mode: "draw",
+    walking: false,
     draft: [],
     cursor: null,
     dragging: null,
@@ -402,12 +406,15 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     setMode: (mode) =>
       set({
         mode,
+        walking: false,
         draft: [],
         cursor: null,
         dragging: null,
         roomDrag: null,
         measure: { from: null, to: null },
       }),
+
+    setWalking: (walking) => set({ walking }),
 
     measure: { from: null, to: null },
     showDimensions: true,
@@ -591,6 +598,21 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     closeDraft: () => {
       const state = get();
       if (activeRoomLocked(state)) return false;
+      if (state.mode === "wall") {
+        if (state.draft.length !== 2 || distance(state.draft[0]!, state.draft[1]!) < state.snap.grid) {
+          return false;
+        }
+        if (activeRoom(state).polygon.length >= 3) return false;
+        state.execute(closeWall(
+          state.activeRoomIndex,
+          state.draft[0]!,
+          state.draft[1]!,
+          currentWallSettings(state),
+          activeRoom(state),
+        ));
+        set({ draft: [], cursor: null, mode: "edit" });
+        return true;
+      }
       if (state.draft.length < 3 || selfIntersects(state.draft)) return false;
       state.execute(closeRoom(
           state.activeRoomIndex,

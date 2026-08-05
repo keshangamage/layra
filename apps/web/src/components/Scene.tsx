@@ -21,6 +21,7 @@ import { Openings } from "./Openings";
 import { Dimensions } from "./Dimensions";
 import { MeasureTool } from "./MeasureTool";
 import { RoomTrim } from "./RoomTrim";
+import { WalkthroughController } from "./WalkthroughController";
 
 /** The room being edited, which follows an in-progress vertex drag. */
 function ActiveRoom() {
@@ -51,25 +52,28 @@ function ActiveRoom() {
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
   const floorMaterial = useEditor((state) => activeRoom(state).floorMaterial);
 
-  if (polygon.length < 3) return null;
+  if (polygon.length < 3 && walls.length === 0) return null;
 
   return (
     <>
-      <Floor
-        polygon={polygon}
-        thickness={thickness}
-        material={floorMaterial}
-        onPointerDown={(event) => {
-          if (mode !== "edit" || pendingOpening) return;
-          event.stopPropagation();
-          editor().beginRoomDrag({ x: event.point.x, z: event.point.z });
-        }}
-      />
+      {polygon.length >= 3 && (
+        <Floor
+          polygon={polygon}
+          thickness={thickness}
+          material={floorMaterial}
+          onPointerDown={(event) => {
+            if (mode !== "edit" || pendingOpening) return;
+            event.stopPropagation();
+            editor().beginRoomDrag({ x: event.point.x, z: event.point.z });
+          }}
+        />
+      )}
       <Walls
         polygon={polygon}
         height={height}
         thickness={thickness}
         openings={openings}
+        walls={walls}
         onPointerDown={(event) => {
           // Only intercept when an opening is armed, so vertex dragging is safe.
           if (!editor().pendingOpening) return;
@@ -101,7 +105,7 @@ function OtherRooms() {
   return (
     <group>
       {rooms.map((room, index) => {
-        if (index === activeIndex || room.polygon.length < 3) return null;
+        if (index === activeIndex || (room.polygon.length < 3 && room.walls.length === 0)) return null;
         if (hiddenRoomIds.has(room.id)) return null;
         const height = room.walls[0]?.height ?? 2.5;
         const thickness = room.walls[0]?.thickness ?? 0.2;
@@ -113,16 +117,19 @@ function OtherRooms() {
               editor().setActiveRoom(index);
             }}
           >
-            <Floor
-              polygon={room.polygon}
-              thickness={thickness}
-              material={room.floorMaterial}
-            />
+            {room.polygon.length >= 3 && (
+              <Floor
+                polygon={room.polygon}
+                thickness={thickness}
+                material={room.floorMaterial}
+              />
+            )}
             <Walls
               polygon={room.polygon}
               height={height}
               thickness={thickness}
               openings={room.walls.map((wall) => wall.openings)}
+              walls={room.walls}
             />
             <RoomTrim walls={room.walls} />
           </group>
@@ -137,6 +144,11 @@ export default function Scene() {
   const [canvasKey, setCanvasKey] = useState(0);
   const attempts = useRef(0);
   const polygon = useEditor((state) => activeRoom(state).polygon);
+  const activeWalls = useEditor((state) => activeRoom(state).walls);
+  const wallPoints = useMemo(
+    () => activeWalls.flatMap((wall) => [wall.start, wall.end]),
+    [activeWalls],
+  );
   const isDragging = useEditor(
     (state) =>
       state.dragging !== null ||
@@ -144,7 +156,11 @@ export default function Scene() {
       state.placementDrag !== null ||
       state.openingDrag !== null,
   );
-  const extent = useMemo(() => bounds(polygon), [polygon]);
+  const walking = useEditor((state) => state.walking);
+  const extent = useMemo(
+    () => bounds(polygon.length > 0 ? polygon : wallPoints),
+    [polygon, wallPoints],
+  );
 
   // Frame the shadow camera to the room so shadows stay sharp.
   const shadowRadius = Math.max(extent.size.x, extent.size.z, 4);
@@ -277,6 +293,7 @@ export default function Scene() {
       <FurniturePlacer />
       <RoomDragController />
       <CameraRig />
+      {walking && <WalkthroughController />}
       <DraftPolyline />
       <VertexHandles />
       {/*
@@ -304,7 +321,7 @@ export default function Scene() {
         followCamera={false}
       />
 
-      <OrbitControls
+      {!walking && <OrbitControls
         makeDefault
         // R3F's stopPropagation doesn't reach OrbitControls, which listens on
         // the canvas directly, so a handle drag would orbit the camera too.
@@ -315,8 +332,17 @@ export default function Scene() {
         minDistance={2}
         maxDistance={60}
         target={[extent.center.x, 0, extent.center.z]}
-      />
+      />}
     </Canvas>
+
+    {walking && (
+      <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center">
+        <div className="rounded-lg border border-white/10 bg-zinc-950/85 px-4 py-3 text-center shadow-xl backdrop-blur">
+          <p className="text-xs font-semibold text-zinc-100">Walkthrough mode</p>
+          <p className="mt-1 text-[11px] text-zinc-400">Click to look around · WASD to walk · Shift to move faster · Esc to exit</p>
+        </div>
+      </div>
+    )}
 
     {contextLost && (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-900/95 text-center">
