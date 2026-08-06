@@ -280,7 +280,7 @@ describe("command merging", () => {
   it("leaves unkeyed commands alone", () => {
     const store = storeWithRoom();
     store.getState().placeFurniture("desk");
-    store.getState().placeFurniture("desk");
+    store.getState().duplicateSelected();
     expect(store.getState().past).toHaveLength(3);
   });
 });

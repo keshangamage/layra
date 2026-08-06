@@ -6,6 +6,7 @@ import {
   rectCorners,
   pointInPolygon,
   segmentsIntersect,
+  offsetPolygon,
   wallLoops,
   type Rect,
 } from "@layra/geometry";
@@ -33,6 +34,53 @@ export function placementRect(placement: Placement): Rect | null {
 
 export function isBlocked(report: CollisionReport, id: string): boolean {
   return report.overlapping.has(id) || report.outOfRoom.has(id);
+}
+
+/** True when a placement can live inside the usable floor of a room. */
+export function placementFitsRoom(room: Room, placement: Placement): boolean {
+  if (room.polygon.length < 3) return false;
+  const item = findCatalogItem(placement.catalogItemId);
+  if (!item) return false;
+  const { inner } = wallLoops(room.polygon, room.walls[0]?.thickness ?? 0);
+  const usable = offsetPolygon(inner, -1e-5);
+  if (item.wallMounted) {
+    return pointInPolygon(
+      { x: placement.position.x, z: placement.position.z },
+      usable,
+    );
+  }
+  const rect = placementRect(placement);
+  return rect ? polygonContains(rectCorners(rect), usable) : false;
+}
+
+/** True when a placement fits its room without overlapping floor furniture. */
+export function placementFitsRoomAndFurniture(
+  room: Room,
+  placement: Placement,
+  existing: readonly Placement[],
+): boolean {
+  if (!placementFitsRoom(room, placement)) return false;
+  const item = findCatalogItem(placement.catalogItemId);
+  const rect = placementRect(placement);
+  if (!item || !rect || item.wallMounted) return true;
+
+  const corners = rectCorners(rect);
+  return placementsInRoom(room, existing).every((other) => {
+    if (other.id === placement.id) return true;
+    const otherItem = findCatalogItem(other.catalogItemId);
+    if (!otherItem || otherItem.wallMounted) return true;
+    const otherRect = placementRect(other);
+    return !otherRect || !convexOverlap(corners, rectCorners(otherRect));
+  });
+}
+
+/** True when every floor placement fits without overlapping another piece. */
+export function placementsFitRoomAndFurniture(
+  room: Room,
+  placements: readonly Placement[],
+): boolean {
+  const report = findCollisions(room, placements);
+  return report.overlapping.size === 0 && report.outOfRoom.size === 0;
 }
 
 /** Clearance zone of a placement, or null when it has no clearance at all. */

@@ -61,8 +61,10 @@ describe("placing furniture", () => {
 
   it("gives each piece a distinct id", () => {
     const store = storeWithRoom();
-    store.getState().placeFurniture("dining-chair");
-    store.getState().placeFurniture("dining-chair");
+    store.getState().armFurniture("dining-chair");
+    store.getState().placeFurnitureAt({ x: 1.5, z: 1 }, true);
+    store.getState().armFurniture("dining-chair");
+    store.getState().placeFurnitureAt({ x: 2.5, z: 2 }, true);
     const [a, b] = store.getState().scene.placements;
     expect(a?.id).not.toBe(b?.id);
   });
@@ -88,7 +90,14 @@ describe("deleting furniture", () => {
 
   it("restores at the original index on undo", () => {
     const store = storeWithRoom();
-    for (const id of ["sofa-3", "desk", "wardrobe"]) store.getState().placeFurniture(id);
+    for (const [id, point] of [
+      ["sofa-3", { x: 2.5, z: 2.2 }],
+      ["desk", { x: 1, z: 1 }],
+      ["wardrobe", { x: 3, z: 1 }],
+    ] as const) {
+      store.getState().armFurniture(id);
+      store.getState().placeFurnitureAt(point, true);
+    }
 
     const middle = store.getState().scene.placements[1]!;
     store.getState().selectPlacement(middle.id);
@@ -154,12 +163,72 @@ describe("rotating furniture", () => {
     store.getState().rotateSelected(1);
     expect(store.getState().scene.placements[0]?.rotationY).toBe(0);
   });
+
+  it("rejects a rotation that would leave the room", () => {
+    const store = storeWithRoom();
+    store.getState().armFurniture("dining-table");
+    store.getState().placeFurnitureAt({ x: 2, z: 0.6 }, true);
+    const before = store.getState().past.length;
+
+    store.getState().rotateSelected(Math.PI / 2);
+
+    expect(store.getState().scene.placements[0]?.rotationY).toBe(0);
+    expect(store.getState().past).toHaveLength(before);
+  });
+
+  it("rejects a direct rotation that would leave the room", () => {
+    const store = storeWithRoom();
+    store.getState().armFurniture("dining-table");
+    store.getState().placeFurnitureAt({ x: 2, z: 0.6 }, true);
+    const before = store.getState().past.length;
+
+    store.getState().setSelectedRotation(Math.PI / 2);
+
+    expect(store.getState().scene.placements[0]?.rotationY).toBe(0);
+    expect(store.getState().past).toHaveLength(before);
+  });
+
+  it("rotates a selected group around its centre", () => {
+    const store = storeWithRoom();
+    store.getState().armFurniture("desk");
+    store.getState().placeFurnitureAt({ x: 1.5, z: 1 }, true);
+    store.getState().armFurniture("dining-chair");
+    store.getState().placeFurnitureAt({ x: 2.5, z: 2 }, true);
+    const [desk, chair] = store.getState().scene.placements;
+    store.getState().selectPlacement(desk!.id);
+    store.getState().selectPlacement(chair!.id, true);
+    const before = store.getState().past.length;
+
+    store.getState().rotateSelected(Math.PI / 2);
+
+    expect(store.getState().scene.placements[0]?.position.x).toBeCloseTo(2.5);
+    expect(store.getState().scene.placements[0]?.position.z).toBeCloseTo(1);
+    expect(store.getState().scene.placements[1]?.position.x).toBeCloseTo(1.5);
+    expect(store.getState().scene.placements[1]?.position.z).toBeCloseTo(2);
+    expect(store.getState().past).toHaveLength(before + 1);
+    store.getState().undo();
+    expect(store.getState().scene.placements.map((p) => p.position.x)).toEqual([1.5, 2.5]);
+  });
+});
+
+describe("nudging furniture", () => {
+  it("rejects a nudge that would leave the room", () => {
+    const store = storeWithRoom();
+    store.getState().armFurniture("desk");
+    store.getState().placeFurnitureAt({ x: 3, z: 1.5 }, true);
+    const before = store.getState().past.length;
+
+    store.getState().nudgeSelected(1, 0, 10);
+
+    expect(store.getState().scene.placements[0]?.position.x).toBe(3);
+    expect(store.getState().past).toHaveLength(before);
+  });
 });
 
 describe("dragging furniture", () => {
   function storeWithSofa() {
     const store = storeWithRoom();
-    store.getState().placeFurniture("sofa-3");
+    store.getState().placeFurniture("armchair");
     return store;
   }
 
@@ -222,7 +291,7 @@ describe("dragging furniture", () => {
 
     expect(store.getState().past).toHaveLength(3);
     expect(store.getState().past.at(-1)?.label).toBe("Move furniture");
-    expect(store.getState().scene.placements[0]?.position.x).toBeCloseTo(3.5);
+    expect(store.getState().scene.placements[0]?.position.x).toBeCloseTo(3);
     expect(store.getState().placementDrag).toBeNull();
   });
 
@@ -272,13 +341,38 @@ describe("dragging furniture", () => {
 
   it("leaves other pieces untouched", () => {
     const store = storeWithSofa();
-    store.getState().placeFurniture("desk");
+    store.getState().armFurniture("desk");
+    store.getState().placeFurnitureAt({ x: 1, z: 2.5 }, true);
     const sofaId = store.getState().scene.placements[0]!.id;
 
     store.getState().beginPlacementDrag(sofaId, { x: 2, z: 1.5 });
     dragTo(store, 3, 1.5);
 
-    expect(livePlacements(store.getState())[1]?.position.x).toBeCloseTo(2);
+    expect(livePlacements(store.getState())[1]?.position.x).toBeCloseTo(1);
+  });
+
+  it("drags the whole selected group as one gesture", () => {
+    const store = storeWithRoom();
+    store.getState().armFurniture("desk");
+    store.getState().placeFurnitureAt({ x: 1, z: 1 }, true);
+    store.getState().armFurniture("dining-chair");
+    store.getState().placeFurnitureAt({ x: 3, z: 2 }, true);
+    const [deskPlacement, chairPlacement] = store.getState().scene.placements;
+    store.getState().selectPlacement(deskPlacement!.id);
+    store.getState().selectPlacement(chairPlacement!.id, true);
+    const before = store.getState().past.length;
+
+    store.getState().beginPlacementDrag(deskPlacement!.id, { x: 1, z: 1 });
+    store.getState().updatePlacementDrag({ x: 1.5, z: 1.5 }, true);
+    expect(livePlacements(store.getState()).map((p) => p.position)).toEqual([
+      { x: 1.5, y: 0, z: 1.5 },
+      { x: 3.5, y: 0, z: 2.5 },
+    ]);
+    store.getState().endPlacementDrag();
+
+    expect(store.getState().past).toHaveLength(before + 1);
+    store.getState().undo();
+    expect(store.getState().scene.placements.map((p) => p.position.x)).toEqual([1, 3]);
   });
 });
 
@@ -344,6 +438,55 @@ describe("click to place", () => {
       y: 0,
       z: 0.6,
     });
+  });
+
+  it("rejects a placement whose footprint leaves the room", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+
+    expect(s.getState().placeFurnitureAt({ x: 0.3, z: 1.5 }, true)).toBe(false);
+    expect(s.getState().scene.placements).toHaveLength(0);
+    expect(s.getState().pendingFurniture).toBe("desk");
+  });
+
+  it("keeps a dragged piece at its last valid position", () => {
+    const s = storeWithRoom();
+    s.getState().placeFurniture("desk");
+    const id = s.getState().scene.placements[0]!.id;
+    s.getState().beginPlacementDrag(id, { x: 2, z: 1.5 });
+    s.getState().updatePlacementDrag({ x: 0, z: 1.5 }, true);
+
+    expect(livePlacements(s.getState())[0]?.position).toEqual({
+      x: 2,
+      y: 0,
+      z: 1.5,
+    });
+    s.getState().endPlacementDrag();
+    expect(s.getState().past.at(-1)?.label).toBe("Add Desk");
+  });
+
+  it("rejects a placement that overlaps existing furniture", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    expect(s.getState().placeFurnitureAt({ x: 1, z: 1.5 }, true)).toBe(true);
+    s.getState().armFurniture("desk");
+
+    expect(s.getState().placeFurnitureAt({ x: 1, z: 1.5 }, true)).toBe(false);
+    expect(s.getState().scene.placements).toHaveLength(1);
+    expect(s.getState().pendingFurniture).toBe("desk");
+  });
+
+  it("keeps a dragged piece from overlapping another piece", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1, z: 1.5 }, true);
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 3, z: 1.5 }, true);
+    const id = s.getState().scene.placements[1]!.id;
+    s.getState().beginPlacementDrag(id, { x: 3, z: 1.5 });
+    s.getState().updatePlacementDrag({ x: 1, z: 1.5 }, true);
+
+    expect(livePlacements(s.getState())[1]?.position.x).toBe(3);
   });
 
   it("selects the new piece and disarms", () => {
@@ -638,13 +781,79 @@ describe("nudging", () => {
     s.getState().nudgeSelected(1, 0);
     expect(desk(s).position.x).toBeCloseTo(2);
   });
+
+  it("moves the whole selected group", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1, z: 1 }, true);
+    s.getState().armFurniture("dining-chair");
+    s.getState().placeFurnitureAt({ x: 3, z: 2 }, true);
+    const [deskPlacement, chairPlacement] = s.getState().scene.placements;
+    s.getState().selectPlacement(deskPlacement!.id);
+    s.getState().selectPlacement(chairPlacement!.id, true);
+    const before = s.getState().past.length;
+
+    s.getState().nudgeSelected(1, 0);
+
+    expect(s.getState().scene.placements.map((p) => p.position.x)).toEqual([1.1, 3.1]);
+    expect(s.getState().past).toHaveLength(before + 1);
+    s.getState().undo();
+    expect(s.getState().scene.placements.map((p) => p.position.x)).toEqual([1, 3]);
+  });
+});
+
+describe("alignment", () => {
+  it("aligns selected furniture by its footprint edges", () => {
+    const s = storeWithRoom();
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1, z: 1 }, true);
+    s.getState().armFurniture("dining-chair");
+    s.getState().placeFurnitureAt({ x: 3, z: 2 }, true);
+    const [desk, chair] = s.getState().scene.placements;
+    s.getState().selectPlacement(desk!.id);
+    s.getState().selectPlacement(chair!.id, true);
+    const before = s.getState().past.length;
+
+    s.getState().alignSelected("left");
+
+    expect(s.getState().scene.placements[0]?.position.x).toBeCloseTo(1);
+    expect(s.getState().scene.placements[1]?.position.x).toBeCloseTo(0.525);
+    expect(s.getState().past).toHaveLength(before + 1);
+    s.getState().undo();
+    expect(s.getState().scene.placements.map((p) => p.position.x)).toEqual([1, 3]);
+  });
+});
+
+describe("distribution", () => {
+  it("spaces three selected pieces evenly on an axis", () => {
+    const s = storeWithRoom();
+    for (const x of [1, 1.8, 3]) {
+      s.getState().armFurniture("dining-chair");
+      s.getState().placeFurnitureAt({ x, z: 1.5 }, true);
+    }
+    const placements = s.getState().scene.placements;
+    s.getState().selectPlacement(placements[0]!.id);
+    for (const placement of placements.slice(1)) {
+      s.getState().selectPlacement(placement.id, true);
+    }
+    const before = s.getState().past.length;
+
+    s.getState().distributeSelected("x");
+
+    expect(s.getState().scene.placements.map((p) => p.position.x)).toEqual([1, 2, 3]);
+    expect(s.getState().past).toHaveLength(before + 1);
+    s.getState().undo();
+    expect(s.getState().scene.placements.map((p) => p.position.x)).toEqual([1, 1.8, 3]);
+  });
 });
 
 describe("multi-selection", () => {
   it("adds and removes pieces with shift-style additive selection", () => {
     const s = storeWithRoom();
-    s.getState().placeFurniture("desk");
-    s.getState().placeFurniture("dining-chair");
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1, z: 1 }, true);
+    s.getState().armFurniture("dining-chair");
+    s.getState().placeFurnitureAt({ x: 3, z: 2 }, true);
     const [first, second] = s.getState().scene.placements;
 
     s.getState().selectPlacement(first!.id);
@@ -658,8 +867,10 @@ describe("multi-selection", () => {
 
   it("deletes a group as one undoable action", () => {
     const s = storeWithRoom();
-    s.getState().placeFurniture("desk");
-    s.getState().placeFurniture("dining-chair");
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 1, z: 1 }, true);
+    s.getState().armFurniture("dining-chair");
+    s.getState().placeFurnitureAt({ x: 3, z: 2 }, true);
     const ids = s.getState().scene.placements.map((placement) => placement.id);
     s.getState().selectPlacement(ids[0]!);
     s.getState().selectPlacement(ids[1]!, true);

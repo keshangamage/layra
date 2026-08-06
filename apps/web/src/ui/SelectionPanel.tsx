@@ -1,6 +1,12 @@
 "use client";
 
-import { findCatalogItem, findCollisions, isBlocked } from "@layra/state";
+import {
+  findCatalogItem,
+  findCollisions,
+  isBlocked,
+  type FurnitureAlignment,
+  type FurnitureDistribution,
+} from "@layra/state";
 import { formatLength } from "@layra/geometry";
 import { useMemo } from "react";
 import { editor, useEditor } from "@/state/editor";
@@ -11,6 +17,14 @@ const ACTION =
 /** Angles are stored in radians and shown in degrees. */
 const toDegrees = (radians: number) => (radians * 180) / Math.PI;
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
+const ALIGNMENTS: { id: FurnitureAlignment; label: string }[] = [
+  { id: "left", label: "Left" },
+  { id: "center-x", label: "Center X" },
+  { id: "right", label: "Right" },
+  { id: "front", label: "Front" },
+  { id: "center-z", label: "Center Z" },
+  { id: "back", label: "Back" },
+];
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -56,6 +70,36 @@ export function SelectionPanel() {
         >
           Delete selected
         </button>
+        <div>
+          <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">Align</p>
+          <div className="grid grid-cols-3 gap-1">
+            {ALIGNMENTS.map((alignment) => (
+              <button
+                key={alignment.id}
+                type="button"
+                className={ACTION}
+                onClick={() => editor().alignSelected(alignment.id)}
+              >
+                {alignment.label}
+              </button>
+            ))}
+          </div>
+          <p className="mb-1 mt-2 text-[10px] uppercase tracking-wide text-zinc-600">
+            Distribute
+          </p>
+          <div className="flex gap-1">
+            {(["x", "z"] as FurnitureDistribution[]).map((axis) => (
+              <button
+                key={axis}
+                type="button"
+                className={ACTION}
+                onClick={() => editor().distributeSelected(axis)}
+              >
+                {axis === "x" ? "Horizontally" : "Vertically"}
+              </button>
+            ))}
+          </div>
+        </div>
         <p className="text-[10px] text-zinc-600">Shift-click furniture to add or remove it.</p>
       </section>
     );

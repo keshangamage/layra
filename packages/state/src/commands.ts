@@ -591,6 +591,25 @@ export function transformPlacement(
   };
 }
 
+export function transformPlacements(
+  changes: readonly { id: string; from: Transform; to: Transform }[],
+): Command {
+  const apply = (scene: Scene, useTo: boolean): Scene => ({
+    ...scene,
+    placements: scene.placements.map((placement) => {
+      const change = changes.find((entry) => entry.id === placement.id);
+      if (!change) return placement;
+      const next = useTo ? change.to : change.from;
+      return { ...placement, position: next.position, rotationY: next.rotationY };
+    }),
+  });
+  return {
+    label: changes.length > 1 ? "Move furniture group" : "Move furniture",
+    do: (scene) => apply(scene, true),
+    undo: (scene) => apply(scene, false),
+  };
+}
+
 export function setPlacementLock(id: string, locked: boolean): Command {
   const apply = (scene: Scene, value: boolean): Scene => ({
     ...scene,

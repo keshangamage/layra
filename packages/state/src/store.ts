@@ -10,7 +10,7 @@ import {
   type Vec2,
   type Vec3,
 } from "@layra/types";
-import { bounds, distance, nearestWallStation, selfIntersects } from "@layra/geometry";
+import { bounds, distance, nearestWallStation, rectCorners, selfIntersects } from "@layra/geometry";
 import { findCatalogItem } from "./catalog";
 import {
   addOpening,
@@ -38,6 +38,7 @@ import {
   setRoomLock,
   setWallSettings,
   transformPlacement,
+  transformPlacements,
   updateOpening,
   wallSettingsOf,
   type Command,
@@ -46,9 +47,24 @@ import {
 import { snapPoint, snapToGrid } from "./snap";
 import { clampOpening, sameOpening } from "./openings";
 import { mountToWall, snapFloorToWall } from "./mounting";
-import { placementsInRoom } from "./collision";
+import {
+  placementFitsRoomAndFurniture,
+  placementRect,
+  placementsFitRoomAndFurniture,
+  placementsInRoom,
+} from "./collision";
 
 export type Mode = "draw" | "wall" | "edit" | "measure";
+
+export type FurnitureAlignment =
+  | "left"
+  | "center-x"
+  | "right"
+  | "front"
+  | "center-z"
+  | "back";
+
+export type FurnitureDistribution = "x" | "z";
 
 export type LightingPreset = "daylight" | "warm" | "studio";
 
@@ -192,6 +208,8 @@ export interface EditorState {
   deleteSelected: () => void;
   rotateSelected: (radians: number) => void;
   setSelectedRotation: (radians: number) => void;
+  alignSelected: (alignment: FurnitureAlignment) => void;
+  distributeSelected: (axis: FurnitureDistribution) => void;
   toggleSelectedLock: () => void;
 
   /** Transient, like `dragging`, so history gets one entry per gesture. */
@@ -199,6 +217,7 @@ export interface EditorState {
     id: string;
     offset: Vec2;
     position: Vec3;
+    group: { id: string; position: Vec3; rotationY: number }[];
     /** Set while sliding a wall-mounted piece onto a differently angled wall. */
     rotationY?: number;
   } | null;
@@ -279,6 +298,14 @@ export function livePlacements(state: EditorState): Placement[] {
           z: p.position.z + roomDrag!.delta.z,
         }
       : p.position;
+    const groupPosition = drag?.group.find((entry) => entry.id === p.id);
+    if (groupPosition) {
+      return {
+        ...p,
+        position: groupPosition.position,
+        rotationY: groupPosition.rotationY,
+      };
+    }
     if (p.id !== drag?.id) return roomPosition === p.position ? p : { ...p, position: roomPosition };
     return {
       ...p,
@@ -331,28 +358,37 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
     nudgeSelected: (dx, dz, multiplier = 1) => {
       const state = get();
       if (activeRoomLocked(state)) return;
-      const placement = state.scene.placements.find((p) => p.id === state.selectedId);
-      if (!placement || placement.locked) return;
+      const selected = state.scene.placements.filter((placement) =>
+        (state.selectedIds.size > 0
+          ? state.selectedIds.has(placement.id)
+          : placement.id === state.selectedId) && !placement.locked,
+      );
+      if (selected.length === 0) return;
 
       const step = state.snap.grid * multiplier;
-      const to = {
-        position: {
-          x: snapToGrid(placement.position.x + dx * step, state.snap.grid),
-          y: placement.position.y,
-          z: snapToGrid(placement.position.z + dz * step, state.snap.grid),
+      const changes = selected.map((placement) => ({
+        id: placement.id,
+        from: { position: placement.position, rotationY: placement.rotationY },
+        to: {
+          position: {
+            x: snapToGrid(placement.position.x + dx * step, state.snap.grid),
+            y: placement.position.y,
+            z: snapToGrid(placement.position.z + dz * step, state.snap.grid),
+          },
+          rotationY: placement.rotationY,
         },
-        rotationY: placement.rotationY,
-      };
+      }));
+      const nextPlacements = state.scene.placements.map((placement) => {
+        const change = changes.find((entry) => entry.id === placement.id);
+        return change ? { ...placement, ...change.to } : placement;
+      });
+      if (!placementsFitRoomAndFurniture(activeRoom(state), nextPlacements)) return;
 
       state.execute({
-        ...transformPlacement(
-          placement.id,
-          { position: placement.position, rotationY: placement.rotationY },
-          to,
-        ),
+        ...transformPlacements(changes),
         label: "Nudge furniture",
         // Repeated taps collapse, so holding an arrow key is one undo.
-        mergeKey: `nudge-${placement.id}`,
+        mergeKey: `nudge-${changes.map((change) => change.id).join("-")}`,
       });
     },
 
@@ -985,6 +1021,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         rotationY: mounted?.rotationY ?? 0,
         locked: false,
       };
+      if (!placementFitsRoomAndFurniture(activeRoom(state), placement, state.scene.placements)) return false;
       state.execute(addPlacement(placement, item.name));
       set({
         pendingFurniture: null,
@@ -1003,17 +1040,32 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const item = findCatalogItem(source.catalogItemId);
       if (!item) return;
 
-      // Offset by half a footprint so the copy is visible, not hidden underneath.
-      const copy: Placement = {
-        ...source,
-        id: crypto.randomUUID(),
-        locked: false,
-        position: {
-          x: source.position.x + item.footprint.w / 2 + 0.2,
-          y: 0,
-          z: source.position.z,
-        },
-      };
+      const spacing = 0.2;
+      const offsets = [
+        { x: item.footprint.w + spacing, z: 0 },
+        { x: -(item.footprint.w + spacing), z: 0 },
+        { x: 0, z: item.footprint.d + spacing },
+        { x: 0, z: -(item.footprint.d + spacing) },
+      ];
+      const copy = offsets
+        .map((offset) => ({
+          ...source,
+          id: crypto.randomUUID(),
+          locked: false,
+          position: {
+            x: source.position.x + offset.x,
+            y: source.position.y,
+            z: source.position.z + offset.z,
+          },
+        }))
+        .find((candidate) =>
+          placementFitsRoomAndFurniture(
+            activeRoom(state),
+            candidate,
+            state.scene.placements,
+          ),
+        );
+      if (!copy) return;
       state.execute(addPlacement(copy, item.name));
       set({ selectedId: copy.id, selectedIds: new Set([copy.id]) });
     },
@@ -1046,6 +1098,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
         rotationY: 0,
         locked: false,
       };
+      if (!placementFitsRoomAndFurniture(activeRoom(state), placement, state.scene.placements)) return;
       state.execute(addPlacement(placement, item.name));
       set({ selectedId: placement.id, selectedIds: new Set([placement.id]) });
     },
@@ -1083,9 +1136,131 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const placement = state.scene.placements.find((p) => p.id === state.selectedId);
       if (!placement || placement.locked) return;
       if (placement.rotationY === radians) return;
+      const candidate: Placement = { ...placement, rotationY: radians };
+      if (!placementFitsRoomAndFurniture(activeRoom(state), candidate, state.scene.placements)) return;
       state.execute(
         setPlacementRotation(placement.id, placement.rotationY, radians),
       );
+    },
+
+    alignSelected: (alignment) => {
+      const state = get();
+      if (activeRoomLocked(state)) return;
+      const selected = state.scene.placements.filter((placement) =>
+        state.selectedIds.has(placement.id) && !placement.locked,
+      );
+      if (selected.length < 2) return;
+
+      const boxes = selected.map((placement) => {
+        const rect = placementRect(placement);
+        const corners = rect ? rectCorners(rect) : [];
+        return {
+          placement,
+          minX: Math.min(...corners.map((corner) => corner.x)),
+          maxX: Math.max(...corners.map((corner) => corner.x)),
+          minZ: Math.min(...corners.map((corner) => corner.z)),
+          maxZ: Math.max(...corners.map((corner) => corner.z)),
+        };
+      });
+      if (boxes.some((box) => !Number.isFinite(box.minX))) return;
+
+      const target =
+        alignment === "left"
+          ? Math.min(...boxes.map((box) => box.minX))
+          : alignment === "right"
+            ? Math.max(...boxes.map((box) => box.maxX))
+            : alignment === "front"
+              ? Math.min(...boxes.map((box) => box.minZ))
+              : alignment === "back"
+                ? Math.max(...boxes.map((box) => box.maxZ))
+                : alignment === "center-x"
+                  ? (Math.min(...boxes.map((box) => box.minX)) +
+                      Math.max(...boxes.map((box) => box.maxX))) /
+                    2
+                  : (Math.min(...boxes.map((box) => box.minZ)) +
+                      Math.max(...boxes.map((box) => box.maxZ))) /
+                    2;
+
+      const changes = boxes.map((box) => {
+        const current =
+          alignment === "left" || alignment === "right"
+            ? (box.minX + box.maxX) / 2
+            : (box.minZ + box.maxZ) / 2;
+        const desired =
+          alignment === "left"
+            ? target + (box.maxX - box.minX) / 2
+            : alignment === "right"
+              ? target - (box.maxX - box.minX) / 2
+              : alignment === "front"
+                ? target + (box.maxZ - box.minZ) / 2
+                : alignment === "back"
+                  ? target - (box.maxZ - box.minZ) / 2
+                  : target;
+        const delta = desired - current;
+        return {
+          id: box.placement.id,
+          from: { position: box.placement.position, rotationY: box.placement.rotationY },
+          to: {
+            position: {
+              ...box.placement.position,
+              x:
+                alignment === "left" || alignment === "center-x" || alignment === "right"
+                  ? box.placement.position.x + delta
+                  : box.placement.position.x,
+              z:
+                alignment === "front" || alignment === "center-z" || alignment === "back"
+                  ? box.placement.position.z + delta
+                  : box.placement.position.z,
+            },
+            rotationY: box.placement.rotationY,
+          },
+        };
+      });
+      const nextPlacements = state.scene.placements.map((placement) => {
+        const change = changes.find((entry) => entry.id === placement.id);
+        return change ? { ...placement, ...change.to } : placement;
+      });
+      if (!placementsFitRoomAndFurniture(activeRoom(state), nextPlacements)) return;
+      state.execute(transformPlacements(changes));
+    },
+
+    distributeSelected: (axis) => {
+      const state = get();
+      if (activeRoomLocked(state)) return;
+      const selected = state.scene.placements.filter((placement) =>
+        state.selectedIds.has(placement.id) && !placement.locked,
+      );
+      if (selected.length < 3) return;
+
+      const ordered = [...selected].sort((a, b) =>
+        axis === "x"
+          ? a.position.x - b.position.x
+          : a.position.z - b.position.z,
+      );
+      const first = ordered[0]!;
+      const last = ordered.at(-1)!;
+      const start = axis === "x" ? first.position.x : first.position.z;
+      const end = axis === "x" ? last.position.x : last.position.z;
+      const step = (end - start) / (ordered.length - 1);
+      const changes = ordered.map((placement, index) => ({
+        id: placement.id,
+        from: { position: placement.position, rotationY: placement.rotationY },
+        to: {
+          position: {
+            ...placement.position,
+            ...(axis === "x"
+              ? { x: start + step * index }
+              : { z: start + step * index }),
+          },
+          rotationY: placement.rotationY,
+        },
+      }));
+      const nextPlacements = state.scene.placements.map((placement) => {
+        const change = changes.find((entry) => entry.id === placement.id);
+        return change ? { ...placement, ...change.to } : placement;
+      });
+      if (!placementsFitRoomAndFurniture(activeRoom(state), nextPlacements)) return;
+      state.execute(transformPlacements(changes));
     },
 
     toggleSelectedLock: () => {
@@ -1101,8 +1276,52 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       if (activeRoomLocked(state)) return;
       const placement = state.scene.placements.find((p) => p.id === state.selectedId);
       if (!placement || placement.locked) return;
+
+      const selected = state.scene.placements.filter((candidate) =>
+        state.selectedIds.size > 1 &&
+        state.selectedIds.has(candidate.id) &&
+        !candidate.locked,
+      );
+      if (selected.length > 1) {
+        const centre = selected.reduce(
+          (sum, candidate) => ({
+            x: sum.x + candidate.position.x / selected.length,
+            z: sum.z + candidate.position.z / selected.length,
+          }),
+          { x: 0, z: 0 },
+        );
+        const cosine = Math.cos(radians);
+        const sine = Math.sin(radians);
+        const changes = selected.map((candidate) => {
+          const dx = candidate.position.x - centre.x;
+          const dz = candidate.position.z - centre.z;
+          return {
+            id: candidate.id,
+            from: { position: candidate.position, rotationY: candidate.rotationY },
+            to: {
+              position: {
+                ...candidate.position,
+                x: centre.x + dx * cosine - dz * sine,
+                z: centre.z + dx * sine + dz * cosine,
+              },
+              rotationY: candidate.rotationY + radians,
+            },
+          };
+        });
+        const nextPlacements = state.scene.placements.map((candidate) => {
+          const change = changes.find((entry) => entry.id === candidate.id);
+          return change ? { ...candidate, ...change.to } : candidate;
+        });
+        if (!placementsFitRoomAndFurniture(activeRoom(state), nextPlacements)) return;
+        state.execute(transformPlacements(changes));
+        return;
+      }
+
+      const nextRotation = placement.rotationY + radians;
+      const candidate: Placement = { ...placement, rotationY: nextRotation };
+      if (!placementFitsRoomAndFurniture(activeRoom(state), candidate, state.scene.placements)) return;
       state.execute(
-        rotatePlacement(placement.id, placement.rotationY, placement.rotationY + radians),
+        rotatePlacement(placement.id, placement.rotationY, nextRotation),
       );
     },
 
@@ -1113,6 +1332,18 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       if (state.pendingFurniture || activeRoomLocked(state)) return;
       const placement = state.scene.placements.find((p) => p.id === id);
       if (!placement || placement.locked) return;
+      const group = state.scene.placements
+        .filter((candidate) =>
+          (state.selectedIds.has(id)
+            ? state.selectedIds.has(candidate.id)
+            : candidate.id === id) &&
+          !candidate.locked,
+        )
+        .map((candidate) => ({
+          id: candidate.id,
+          position: candidate.position,
+          rotationY: candidate.rotationY,
+        }));
       // Grab offset, so the piece doesn't jump its centre to the pointer.
       set({
         placementDrag: {
@@ -1122,6 +1353,7 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
             z: placement.position.z - pointer.z,
           },
           position: placement.position,
+          group,
         },
       });
     },
@@ -1137,6 +1369,33 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
 
         const placement = state.scene.placements.find((p) => p.id === drag.id);
         const item = placement ? findCatalogItem(placement.catalogItemId) : undefined;
+        if (!placement) return state;
+        if (drag.group.length > 1) {
+          const delta = {
+            x: snapped.x - drag.group.find((entry) => entry.id === drag.id)!.position.x,
+            z: snapped.z - drag.group.find((entry) => entry.id === drag.id)!.position.z,
+          };
+          const group = drag.group.map((entry) => ({
+            ...entry,
+            position: {
+              ...entry.position,
+              x: entry.position.x + delta.x,
+              z: entry.position.z + delta.z,
+            },
+          }));
+          const nextPlacements = state.scene.placements.map((candidate) => {
+            const moved = group.find((entry) => entry.id === candidate.id);
+            return moved ? { ...candidate, position: moved.position } : candidate;
+          });
+          if (!placementsFitRoomAndFurniture(activeRoom(state), nextPlacements)) return state;
+          return {
+            placementDrag: {
+              ...drag,
+              position: group.find((entry) => entry.id === drag.id)!.position,
+              group,
+            },
+          };
+        }
         if (item) {
           // Wall pieces always ride a wall; floor pieces only snap when near one.
           const mounted = item.wallMounted
@@ -1145,22 +1404,45 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
               ? null
               : snapFloorToWall(activeRoom(state), snapped, item);
           if (mounted) {
+            const candidate = {
+              ...placement,
+              position: mounted.position,
+              rotationY: mounted.rotationY,
+            };
+            if (!placementFitsRoomAndFurniture(activeRoom(state), candidate, state.scene.placements)) return state;
             return {
               placementDrag: {
                 ...drag,
                 position: mounted.position,
                 rotationY: mounted.rotationY,
+                group: drag.group.map((entry) =>
+                  entry.id === placement.id
+                    ? { ...entry, position: mounted.position, rotationY: mounted.rotationY }
+                    : entry,
+                ),
               },
             };
           }
         }
 
         // Out in the room, or bypassed: keep whatever rotation it has.
+        if (!placement) return state;
+        const candidate: Placement = {
+          ...placement,
+          position: { x: snapped.x, y: 0, z: snapped.z },
+          rotationY: placement.rotationY,
+        };
+        if (!placementFitsRoomAndFurniture(activeRoom(state), candidate, state.scene.placements)) return state;
         return {
           placementDrag: {
             ...drag,
             position: { x: snapped.x, y: 0, z: snapped.z },
             rotationY: placement?.rotationY,
+            group: drag.group.map((entry) =>
+              entry.id === placement.id
+                ? { ...entry, position: { x: snapped.x, y: 0, z: snapped.z } }
+                : entry,
+            ),
           },
         };
       }),
@@ -1172,6 +1454,28 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const placement = state.scene.placements.find((p) => p.id === drag.id);
       set({ placementDrag: null });
       if (!placement) return;
+
+      if (drag.group.length > 1) {
+        const changes = drag.group.flatMap((entry) => {
+          const current = state.scene.placements.find((p) => p.id === entry.id);
+          if (!current) return [];
+          const to = { position: entry.position, rotationY: entry.rotationY };
+          if (
+            current.position.x === to.position.x &&
+            current.position.z === to.position.z &&
+            current.rotationY === to.rotationY
+          ) {
+            return [];
+          }
+          return [{
+            id: entry.id,
+            from: { position: current.position, rotationY: current.rotationY },
+            to,
+          }];
+        });
+        if (changes.length > 0) state.execute(transformPlacements(changes));
+        return;
+      }
 
       const to = {
         position: drag.position,

@@ -299,8 +299,8 @@ describe("moving a room", () => {
 
   it("moves furniture whose footprint touches a wall with the room", () => {
     const s = storeWithRoom();
-    s.getState().armFurniture("sofa-3");
-    s.getState().placeFurnitureAt({ x: 0.75, z: 1.5 }, true);
+    s.getState().armFurniture("desk");
+    s.getState().placeFurnitureAt({ x: 0.8, z: 1.5 }, true);
     const before = s.getState().scene.placements[0]!.position;
 
     expect(placementsInRoom(rooms(s)[0]!, s.getState().scene.placements)).toHaveLength(1);
