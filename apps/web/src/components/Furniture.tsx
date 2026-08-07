@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { RoundedBox } from "@react-three/drei";
 import {
   clearanceRect,
   findCatalogItem,
@@ -33,17 +34,28 @@ function Box({
   position,
   color,
   metalness = 0,
+  roughness = 0.7,
+  radius,
 }: {
   size: [number, number, number];
   position: [number, number, number];
   color: string;
   metalness?: number;
+  roughness?: number;
+  radius?: number;
 }) {
+  const bevel = radius ?? Math.min(0.025, size[0] / 7, size[1] / 5, size[2] / 7);
   return (
-    <mesh position={position} castShadow receiveShadow>
-      <boxGeometry args={size} />
-      <meshStandardMaterial color={color} roughness={0.7} metalness={metalness} />
-    </mesh>
+    <RoundedBox
+      args={size}
+      position={position}
+      radius={bevel}
+      smoothness={3}
+      castShadow
+      receiveShadow
+    >
+      <meshStandardMaterial color={color} roughness={roughness} metalness={metalness} />
+    </RoundedBox>
   );
 }
 
@@ -54,6 +66,18 @@ function Leg({ position, height = 0.65, color = "#3f3028" }: { position: [number
       <meshStandardMaterial color={color} roughness={0.65} />
     </mesh>
   );
+}
+
+function Cushion({
+  size,
+  position,
+  color,
+}: {
+  size: [number, number, number];
+  position: [number, number, number];
+  color: string;
+}) {
+  return <Box size={size} position={position} color={color} roughness={0.92} radius={0.06} />;
 }
 
 function FurnitureModel({ item }: { item: NonNullable<ReturnType<typeof findCatalogItem>> }) {
@@ -68,51 +92,71 @@ function FurnitureModel({ item }: { item: NonNullable<ReturnType<typeof findCata
     case "sofa-3":
       return (
         <group>
-          <Box size={[w, 0.28, d]} position={[0, 0.14, 0]} color={darkWood} />
-          <Box size={[w - 0.12, 0.24, d * 0.66]} position={[0, 0.42, d * 0.04]} color={fabric} />
-          <Box size={[w - 0.08, 0.55, 0.2]} position={[0, 0.66, d * 0.38]} color={fabric} />
-          <Box size={[0.16, 0.52, d * 0.86]} position={[-w / 2 + 0.08, 0.48, 0]} color={fabric} />
-          <Box size={[0.16, 0.52, d * 0.86]} position={[w / 2 - 0.08, 0.48, 0]} color={fabric} />
+          <Box size={[w - 0.1, 0.18, d - 0.08]} position={[0, 0.19, 0]} color={darkWood} roughness={0.5} radius={0.04} />
+          <Box size={[w - 0.1, 0.43, 0.16]} position={[0, 0.65, d * 0.39]} color={fabric} roughness={0.94} radius={0.07} />
+          <Box size={[0.18, 0.43, d * 0.86]} position={[-w / 2 + 0.1, 0.46, 0]} color={fabric} roughness={0.94} radius={0.07} />
+          <Box size={[0.18, 0.43, d * 0.86]} position={[w / 2 - 0.1, 0.46, 0]} color={fabric} roughness={0.94} radius={0.07} />
           {[-w / 3, 0, w / 3].map((x) => (
-            <Box key={x} size={[w / 3 - 0.08, 0.08, d * 0.55]} position={[x, 0.56, d * 0.04]} color="#7c8c68" />
+            <Cushion key={x} size={[w / 3 - 0.11, 0.14, d * 0.57]} position={[x, 0.43, d * 0.01]} color="#72815f" />
           ))}
+          <Cushion size={[0.34, 0.12, 0.28]} position={[-w * 0.27, 0.72, d * 0.17]} color="#c4a17d" />
+          <Cushion size={[0.3, 0.12, 0.24]} position={[w * 0.26, 0.72, d * 0.18]} color="#526173" />
+          {[-1, 1].flatMap((x) => [-1, 1].map((z) => (
+            <Leg key={`${x}-${z}`} position={[x * (w / 2 - 0.16), 0.09, z * (d / 2 - 0.13)]} height={0.18} color="#2f2924" />
+          )))}
         </group>
       );
     case "armchair":
       return (
         <group>
-          <Box size={[w, 0.25, d]} position={[0, 0.13, 0]} color={darkWood} />
-          <Box size={[w - 0.16, 0.25, d * 0.64]} position={[0, 0.4, d * 0.04]} color={fabric} />
-          <Box size={[w - 0.1, 0.55, 0.18]} position={[0, 0.67, d * 0.38]} color={fabric} />
-          <Box size={[0.16, 0.5, d * 0.86]} position={[-w / 2 + 0.08, 0.46, 0]} color={fabric} />
-          <Box size={[0.16, 0.5, d * 0.86]} position={[w / 2 - 0.08, 0.46, 0]} color={fabric} />
+          <Box size={[w - 0.08, 0.16, d - 0.08]} position={[0, 0.18, 0]} color={darkWood} roughness={0.5} radius={0.04} />
+          <Cushion size={[w - 0.22, 0.17, d * 0.6]} position={[0, 0.42, d * 0.02]} color="#6b7a8a" />
+          <Box size={[w - 0.12, 0.46, 0.16]} position={[0, 0.66, d * 0.38]} color="#6b7a8a" roughness={0.94} radius={0.07} />
+          <Box size={[0.16, 0.42, d * 0.82]} position={[-w / 2 + 0.09, 0.47, 0]} color="#6b7a8a" roughness={0.94} radius={0.07} />
+          <Box size={[0.16, 0.42, d * 0.82]} position={[w / 2 - 0.09, 0.47, 0]} color="#6b7a8a" roughness={0.94} radius={0.07} />
+          {[-1, 1].flatMap((x) => [-1, 1].map((z) => (
+            <Leg key={`${x}-${z}`} position={[x * (w / 2 - 0.13), 0.09, z * (d / 2 - 0.13)]} height={0.18} color="#2f2924" />
+          )))}
         </group>
       );
     case "bed-double":
       return (
         <group>
-          <Box size={[w, 0.25, d]} position={[0, 0.13, 0]} color={darkWood} />
-          <Box size={[w - 0.12, 0.35, d - 0.12]} position={[0, 0.42, 0]} color="#d6c6ad" />
-          <Box size={[w - 0.18, 0.1, d * 0.38]} position={[0, 0.65, -d * 0.2]} color="#f3eee5" />
-          <Box size={[w, 1.0, 0.14]} position={[0, 0.62, d / 2 - 0.07]} color={darkWood} />
-          <Leg position={[-w / 2 + 0.12, 0.05, -d / 2 + 0.12]} />
-          <Leg position={[w / 2 - 0.12, 0.05, -d / 2 + 0.12]} />
+          <Box size={[w - 0.06, 0.2, d - 0.08]} position={[0, 0.18, 0]} color={darkWood} roughness={0.48} radius={0.04} />
+          <Box size={[w - 0.12, 0.26, d - 0.15]} position={[0, 0.4, -0.02]} color="#d9cbb8" roughness={0.9} radius={0.06} />
+          <Box size={[w - 0.16, 0.035, d * 0.48]} position={[0, 0.55, d * 0.17]} color="#9a7868" roughness={0.94} radius={0.02} />
+          <Cushion size={[w * 0.41, 0.11, d * 0.2]} position={[-w * 0.22, 0.58, -d * 0.29]} color="#f1e8dc" />
+          <Cushion size={[w * 0.41, 0.11, d * 0.2]} position={[w * 0.22, 0.58, -d * 0.29]} color="#f1e8dc" />
+          <Box size={[w, 0.86, 0.13]} position={[0, 0.53, d / 2 - 0.065]} color={darkWood} roughness={0.48} radius={0.05} />
+          <Box size={[w - 0.14, 0.58, 0.025]} position={[0, 0.56, d / 2 - 0.14]} color="#b49478" roughness={0.8} radius={0.01} />
+          {[-1, 1].flatMap((x) => [-1, 1].map((z) => (
+            <Leg key={`${x}-${z}`} position={[x * (w / 2 - 0.12), 0.1, z * (d / 2 - 0.12)]} height={0.2} />
+          )))}
         </group>
       );
     case "dining-table":
       return (
         <group>
-          <Box size={[w, 0.14, d]} position={[0, h - 0.08, 0]} color={wood} />
+          <Box size={[w, 0.12, d]} position={[0, h - 0.07, 0]} color={wood} roughness={0.42} radius={0.035} />
+          <Box size={[w - 0.12, 0.09, d - 0.12]} position={[0, h - 0.15, 0]} color={darkWood} roughness={0.5} radius={0.015} />
           {[-1, 1].flatMap((x) => [-1, 1].map((z) => (
-            <Leg key={`${x}-${z}`} position={[x * (w / 2 - 0.12), h / 2 - 0.08, z * (d / 2 - 0.12)]} color={darkWood} />
+            <Leg key={`${x}-${z}`} position={[x * (w / 2 - 0.13), h / 2 - 0.08, z * (d / 2 - 0.13)]} color={darkWood} />
           )))}
+          {[-w * 0.26, 0, w * 0.26].map((x) => (
+            <mesh key={x} position={[x, h + 0.006, 0]} castShadow>
+              <cylinderGeometry args={[0.1, 0.1, 0.018, 20]} />
+              <meshStandardMaterial color="#e9e4da" roughness={0.36} />
+            </mesh>
+          ))}
         </group>
       );
     case "dining-chair":
       return (
         <group>
-          <Box size={[w, 0.1, d]} position={[0, 0.5, 0]} color={wood} />
-          <Box size={[w - 0.08, 0.65, 0.1]} position={[0, 0.72, d / 2 - 0.05]} color={wood} />
+          <Box size={[w - 0.05, 0.09, d - 0.05]} position={[0, 0.48, 0]} color={wood} roughness={0.5} radius={0.025} />
+          <Cushion size={[w - 0.12, 0.08, d - 0.14]} position={[0, 0.56, -0.01]} color="#7d8b78" />
+          <Box size={[w - 0.08, 0.44, 0.09]} position={[0, 0.78, d / 2 - 0.05]} color={wood} roughness={0.5} radius={0.025} />
+          <Box size={[w - 0.15, 0.24, 0.04]} position={[0, 0.77, d / 2 - 0.105]} color="#72815f" roughness={0.94} radius={0.02} />
           {[-1, 1].flatMap((x) => [-1, 1].map((z) => (
             <Leg key={`${x}-${z}`} position={[x * (w / 2 - 0.08), 0.24, z * (d / 2 - 0.08)]} color={darkWood} />
           )))}
@@ -121,17 +165,34 @@ function FurnitureModel({ item }: { item: NonNullable<ReturnType<typeof findCata
     case "desk":
       return (
         <group>
-          <Box size={[w, 0.12, d]} position={[0, h - 0.06, 0]} color={wood} />
-          <Box size={[0.12, h - 0.12, d]} position={[-w / 2 + 0.08, (h - 0.12) / 2, 0]} color={darkWood} />
-          <Box size={[0.12, h - 0.12, d]} position={[w / 2 - 0.08, (h - 0.12) / 2, 0]} color={darkWood} />
-          <Box size={[w * 0.42, 0.08, d * 0.55]} position={[0, h + 0.08, -d * 0.08]} color="#d1d5db" />
+          <Box size={[w, 0.1, d]} position={[0, h - 0.055, 0]} color={wood} roughness={0.42} radius={0.025} />
+          <Box size={[w - 0.1, 0.07, d - 0.12]} position={[0, h - 0.12, 0]} color={darkWood} roughness={0.5} radius={0.015} />
+          {[-1, 1].map((x) => (
+            <Leg key={x} position={[x * (w / 2 - 0.1), (h - 0.14) / 2, d * 0.3]} height={h - 0.14} color="#3d3a35" />
+          ))}
+          <Box size={[w * 0.28, h * 0.62, d * 0.68]} position={[-w * 0.31, h * 0.35, d * 0.1]} color="#5a4031" roughness={0.58} radius={0.025} />
+          {[0.24, 0.43].map((y) => (
+            <group key={y}>
+              <Box size={[w * 0.23, 0.016, 0.022]} position={[-w * 0.31, y, -d * 0.25]} color="#2c2520" radius={0.004} />
+              <Box size={[w * 0.1, 0.018, 0.02]} position={[-w * 0.31, y + 0.06, -d * 0.28]} color={metal} metalness={0.7} roughness={0.28} radius={0.004} />
+            </group>
+          ))}
+          <Box size={[w * 0.42, 0.035, d * 0.52]} position={[w * 0.12, h + 0.02, -d * 0.06]} color="#26343c" roughness={0.84} radius={0.015} />
+          <Box size={[w * 0.29, h * 0.31, 0.025]} position={[w * 0.12, h + h * 0.2, d * 0.05]} color="#151a1e" roughness={0.38} radius={0.02} />
+          <Box size={[0.035, h * 0.17, 0.035]} position={[w * 0.12, h + h * 0.04, d * 0.05]} color="#343b42" metalness={0.65} roughness={0.25} radius={0.008} />
         </group>
       );
     case "wardrobe":
       return (
         <group>
-          <Box size={[w, h, d]} position={[0, h / 2, 0]} color={wood} />
-          <Box size={[0.025, h * 0.82, 0.02]} position={[0, h * 0.5, -d / 2 - 0.012]} color={darkWood} />
+          <Box size={[w, h, d]} position={[0, h / 2, 0]} color={wood} roughness={0.46} radius={0.035} />
+          {[-1, 1].map((side) => (
+            <group key={side}>
+              <Box size={[w * 0.43, h * 0.86, 0.028]} position={[side * w * 0.235, h * 0.5, -d / 2 - 0.018]} color="#9d704c" roughness={0.5} radius={0.015} />
+              <Box size={[w * 0.34, h * 0.72, 0.012]} position={[side * w * 0.235, h * 0.5, -d / 2 - 0.037]} color="#805b41" roughness={0.55} radius={0.008} />
+            </group>
+          ))}
+          <Box size={[0.025, h * 0.82, 0.02]} position={[0, h * 0.5, -d / 2 - 0.045]} color={darkWood} />
           <mesh position={[-0.08, h * 0.5, -d / 2 - 0.03]}>
             <sphereGeometry args={[0.025, 10, 8]} />
             <meshStandardMaterial color={metal} metalness={0.7} roughness={0.3} />
@@ -145,11 +206,23 @@ function FurnitureModel({ item }: { item: NonNullable<ReturnType<typeof findCata
     case "bookshelf":
       return (
         <group>
-          <Box size={[w, 0.08, d]} position={[0, 0.04, 0]} color={wood} />
-          <Box size={[0.08, h, d]} position={[-w / 2 + 0.04, h / 2, 0]} color={wood} />
-          <Box size={[0.08, h, d]} position={[w / 2 - 0.04, h / 2, 0]} color={wood} />
+          <Box size={[w, 0.08, d]} position={[0, 0.04, 0]} color={wood} roughness={0.52} />
+          <Box size={[0.08, h, d]} position={[-w / 2 + 0.04, h / 2, 0]} color={wood} roughness={0.52} />
+          <Box size={[0.08, h, d]} position={[w / 2 - 0.04, h / 2, 0]} color={wood} roughness={0.52} />
           {[0.35, 0.8, 1.25, 1.7].filter((y) => y < h).map((y) => (
-            <Box key={y} size={[w - 0.08, 0.07, d]} position={[0, y, 0]} color={wood} />
+            <group key={y}>
+              <Box size={[w - 0.08, 0.07, d]} position={[0, y, 0]} color={wood} roughness={0.52} />
+              {[-0.22, -0.1, 0.04, 0.18].map((x, index) => (
+                <Box
+                  key={x}
+                  size={[0.08, 0.2 + (index % 2) * 0.05, d * 0.45]}
+                  position={[x, y + 0.14, -d * 0.16]}
+                  color={["#a4523b", "#667558", "#3f5870", "#b58a48"][index]!}
+                  roughness={0.78}
+                  radius={0.008}
+                />
+              ))}
+            </group>
           ))}
         </group>
       );
@@ -177,10 +250,13 @@ function FurnitureModel({ item }: { item: NonNullable<ReturnType<typeof findCata
     case "tv-stand":
       return (
         <group>
-          <Box size={[w, h * 0.78, d]} position={[0, h * 0.39, 0]} color={darkWood} />
-          <Box size={[w - 0.08, 0.06, d + 0.03]} position={[0, h * 0.8, 0]} color={wood} />
-          <Box size={[w * 0.65, h * 0.58, 0.035]} position={[0, h * 0.58, -d / 2 - 0.025]} color="#171717" />
-          <Box size={[w * 0.6, h * 0.5, 0.02]} position={[0, h * 0.58, -d / 2 - 0.05]} color="#334155" />
+          <Box size={[w, h * 0.72, d]} position={[0, h * 0.42, 0]} color={darkWood} roughness={0.5} radius={0.025} />
+          <Box size={[w - 0.08, 0.06, d + 0.03]} position={[0, h * 0.8, 0]} color={wood} roughness={0.42} radius={0.02} />
+          <Box size={[w * 0.65, h * 0.48, 0.045]} position={[0, h * 0.67, -d / 2 - 0.03]} color="#15191c" roughness={0.28} radius={0.02} />
+          <Box size={[w * 0.58, h * 0.4, 0.012]} position={[0, h * 0.67, -d / 2 - 0.058]} color="#30475a" metalness={0.2} roughness={0.18} radius={0.01} />
+          {[-0.28, 0.28].map((x) => (
+            <Box key={x} size={[w * 0.22, h * 0.28, 0.02]} position={[x * w, h * 0.28, -d / 2 - 0.022]} color="#76533d" roughness={0.55} radius={0.012} />
+          ))}
           <Box size={[0.04, 0.04, 0.04]} position={[-w * 0.3, h * 0.35, -d / 2 - 0.03]} color={metal} />
           <Box size={[0.04, 0.04, 0.04]} position={[w * 0.3, h * 0.35, -d / 2 - 0.03]} color={metal} />
         </group>
@@ -229,11 +305,14 @@ function FurnitureModel({ item }: { item: NonNullable<ReturnType<typeof findCata
     case "rug":
       return (
         <group>
-          <Box size={[w, h, d]} position={[0, h / 2, 0]} color="#9a7b62" />
+          <Box size={[w, h, d]} position={[0, h / 2, 0]} color="#9a7b62" roughness={0.96} radius={0.035} />
           <Box size={[w - 0.12, 0.008, 0.035]} position={[0, h + 0.006, -d / 2 + 0.07]} color="#d2b48c" />
           <Box size={[w - 0.12, 0.008, 0.035]} position={[0, h + 0.006, d / 2 - 0.07]} color="#d2b48c" />
           <Box size={[0.035, 0.008, d - 0.12]} position={[-w / 2 + 0.07, h + 0.006, 0]} color="#d2b48c" />
           <Box size={[0.035, 0.008, d - 0.12]} position={[w / 2 - 0.07, h + 0.006, 0]} color="#d2b48c" />
+          {[-0.25, 0, 0.25].map((x) => (
+            <Box key={x} size={[0.025, 0.006, d * 0.56]} position={[x * w, h + 0.008, 0]} color="#d2b48c" radius={0.004} />
+          ))}
         </group>
       );
     case "kitchen-island":

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Grid, OrbitControls } from "@react-three/drei";
+import { ContactShadows, Grid, OrbitControls } from "@react-three/drei";
 import { Vector3 } from "three";
 import { bounds } from "@layra/geometry";
 import { activeRoom, currentWallSettings,
@@ -284,6 +284,15 @@ export default function Scene() {
         color={lighting.pointColor}
         distance={Math.max(extent.size.x, extent.size.z, 5) * 2}
         decay={2}
+      />
+      <ContactShadows
+        position={[extent.center.x, 0.006, extent.center.z]}
+        opacity={0.28}
+        scale={Math.max(extent.size.x, extent.size.z, 5) * 1.4}
+        blur={2.4}
+        far={3.5}
+        resolution={512}
+        color="#19130d"
       />
 
       <OtherRooms />
