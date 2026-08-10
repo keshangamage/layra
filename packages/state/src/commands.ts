@@ -622,6 +622,42 @@ export function setPlacementLock(id: string, locked: boolean): Command {
   };
 }
 
+export function setPlacementFinish(
+  id: string,
+  from: Placement["finish"],
+  to: Placement["finish"],
+): Command {
+  const apply = (scene: Scene, finish: Placement["finish"]): Scene => ({
+    ...scene,
+    placements: scene.placements.map((placement) =>
+      placement.id === id ? { ...placement, finish } : placement,
+    ),
+  });
+  return {
+    label: "Change furniture finish",
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
+export function setPlacementFinishes(
+  changes: readonly { id: string; from: Placement["finish"]; to: Placement["finish"] }[],
+): Command {
+  const apply = (scene: Scene, useTo: boolean): Scene => ({
+    ...scene,
+    placements: scene.placements.map((placement) => {
+      const change = changes.find((entry) => entry.id === placement.id);
+      if (!change) return placement;
+      return { ...placement, finish: useTo ? change.to : change.from };
+    }),
+  });
+  return {
+    label: "Change furniture group finishes",
+    do: (scene) => apply(scene, true),
+    undo: (scene) => apply(scene, false),
+  };
+}
+
 /** Absolute angle, unlike rotatePlacement's delta, so a slider can merge. */
 export function setPlacementRotation(
   id: string,

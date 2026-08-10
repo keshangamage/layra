@@ -11,6 +11,7 @@ import {
 } from "@layra/state";
 import type { Rect } from "@layra/geometry";
 import type { Placement } from "@layra/types";
+import type { FurnitureFinish } from "@layra/types";
 import { editor, useEditor } from "@/state/editor";
 import { useGroundPointer } from "./useGroundPointer";
 
@@ -80,13 +81,27 @@ function Cushion({
   return <Box size={size} position={position} color={color} roughness={0.92} radius={0.06} />;
 }
 
-function FurnitureModel({ item }: { item: NonNullable<ReturnType<typeof findCatalogItem>> }) {
+function FurnitureModel({
+  item,
+  finish,
+}: {
+  item: NonNullable<ReturnType<typeof findCatalogItem>>;
+  finish?: FurnitureFinish;
+}) {
   const { w, d } = item.footprint;
   const h = item.height;
-  const wood = "#8b5e3c";
-  const darkWood = "#4b3025";
-  const fabric = item.id === "armchair" ? "#64748b" : "#5f6f52";
-  const metal = "#71717a";
+  const palettes = {
+    natural: { wood: "#8b5e3c", darkWood: "#4b3025", fabric: item.id === "armchair" ? "#64748b" : "#5f6f52", metal: "#71717a" },
+    painted: { wood: "#d7d0c4", darkWood: "#9a8f82", fabric: "#718096", metal: "#72777d" },
+    fabric: { wood: "#68584d", darkWood: "#40352f", fabric: "#9b7b68", metal: "#756d66" },
+    leather: { wood: "#6c3d2e", darkWood: "#3b241d", fabric: "#9a543c", metal: "#7b7068" },
+    metal: { wood: "#69717a", darkWood: "#333940", fabric: "#64748b", metal: "#c0c7cc" },
+  } satisfies Record<FurnitureFinish, { wood: string; darkWood: string; fabric: string; metal: string }>;
+  const palette = palettes[finish ?? "natural"];
+  const wood = palette.wood;
+  const darkWood = palette.darkWood;
+  const fabric = palette.fabric;
+  const metal = palette.metal;
 
   switch (item.id) {
     case "sofa-3":
@@ -535,7 +550,7 @@ function Piece({ placement, selected, blocked, crowded, onGrab, onHover }: Piece
           depthWrite={false}
         />
       </mesh>
-      <FurnitureModel item={item} />
+      <FurnitureModel item={item} finish={placement.finish} />
     </group>
   );
 }

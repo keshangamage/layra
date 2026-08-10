@@ -6,6 +6,7 @@ import {
   type Opening,
   type OpeningType,
   type Placement,
+  type FurnitureFinish,
   type Scene,
   type Vec2,
   type Vec3,
@@ -34,6 +35,8 @@ import {
   rotatePlacement,
   setFloorMaterial,
   setPlacementLock,
+  setPlacementFinish,
+  setPlacementFinishes,
   setPlacementRotation,
   setRoomLock,
   setWallSettings,
@@ -53,6 +56,8 @@ import {
   placementsFitRoomAndFurniture,
   placementsInRoom,
 } from "./collision";
+
+export type { FurnitureFinish } from "@layra/types";
 
 export type Mode = "draw" | "wall" | "edit" | "measure";
 
@@ -208,6 +213,7 @@ export interface EditorState {
   deleteSelected: () => void;
   rotateSelected: (radians: number) => void;
   setSelectedRotation: (radians: number) => void;
+  setSelectedFinish: (finish: FurnitureFinish) => void;
   alignSelected: (alignment: FurnitureAlignment) => void;
   distributeSelected: (axis: FurnitureDistribution) => void;
   toggleSelectedLock: () => void;
@@ -1141,6 +1147,30 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       state.execute(
         setPlacementRotation(placement.id, placement.rotationY, radians),
       );
+    },
+
+    setSelectedFinish: (finish) => {
+      const state = get();
+      if (activeRoomLocked(state)) return;
+      const selected = state.scene.placements.filter((placement) =>
+        (state.selectedIds.size > 1
+          ? state.selectedIds.has(placement.id)
+          : placement.id === state.selectedId) && !placement.locked,
+      );
+      const changes = selected
+        .filter((placement) => placement.finish !== finish)
+        .map((placement) => ({
+          id: placement.id,
+          from: placement.finish,
+          to: finish,
+        }));
+      if (changes.length === 0) return;
+      if (changes.length === 1) {
+        const change = changes[0]!;
+        state.execute(setPlacementFinish(change.id, change.from, change.to));
+        return;
+      }
+      state.execute(setPlacementFinishes(changes));
     },
 
     alignSelected: (alignment) => {

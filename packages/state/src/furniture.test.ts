@@ -211,6 +211,46 @@ describe("rotating furniture", () => {
   });
 });
 
+describe("furniture finishes", () => {
+  it("changes the selected finish and supports undo", () => {
+    const store = storeWithRoom();
+    store.getState().placeFurniture("sofa-3");
+    const before = store.getState().past.length;
+
+    store.getState().setSelectedFinish("leather");
+
+    expect(store.getState().scene.placements[0]?.finish).toBe("leather");
+    expect(store.getState().past).toHaveLength(before + 1);
+    store.getState().undo();
+    expect(store.getState().scene.placements[0]?.finish).toBeUndefined();
+  });
+
+  it("changes the finish of a selected group in one action", () => {
+    const store = storeWithRoom();
+    store.getState().placeFurniture("sofa-3");
+    const first = store.getState().scene.placements[0]!;
+    store.getState().armFurniture("armchair");
+    store.getState().placeFurnitureAt({ x: 1, z: 2.4 }, true);
+    const second = store.getState().scene.placements[1]!;
+    store.getState().selectPlacement(first.id);
+    store.getState().selectPlacement(second.id, true);
+    const before = store.getState().past.length;
+
+    store.getState().setSelectedFinish("fabric");
+
+    expect(store.getState().scene.placements.map((p) => p.finish)).toEqual([
+      "fabric",
+      "fabric",
+    ]);
+    expect(store.getState().past).toHaveLength(before + 1);
+    store.getState().undo();
+    expect(store.getState().scene.placements.map((p) => p.finish)).toEqual([
+      undefined,
+      undefined,
+    ]);
+  });
+});
+
 describe("nudging furniture", () => {
   it("rejects a nudge that would leave the room", () => {
     const store = storeWithRoom();

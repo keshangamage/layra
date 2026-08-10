@@ -58,6 +58,7 @@ describe("round trip", () => {
       position: { x: 1, y: 0, z: 2 },
       rotationY: Math.PI / 2,
       locked: false,
+      finish: "leather",
     });
     expect(parsedOrThrow(serializeScene(scene))).toEqual(scene);
   });

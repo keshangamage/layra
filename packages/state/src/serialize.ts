@@ -7,6 +7,7 @@ import {
   type Vec2,
   type Vec3,
   type Wall,
+  type FurnitureFinish,
 } from "@layra/types";
 
 export type ParseResult =
@@ -79,12 +80,22 @@ function placement(value: unknown): Placement | null {
   if (typeof value.id !== "string" || typeof value.catalogItemId !== "string") return null;
   const position = vec3(value.position);
   if (!position || !num(value.rotationY) || typeof value.locked !== "boolean") return null;
+  const finish = value.finish === undefined ? undefined : value.finish;
+  if (
+    finish !== undefined &&
+    finish !== "natural" &&
+    finish !== "painted" &&
+    finish !== "fabric" &&
+    finish !== "leather" &&
+    finish !== "metal"
+  ) return null;
   return {
     id: value.id,
     catalogItemId: value.catalogItemId,
     position,
     rotationY: value.rotationY,
     locked: value.locked,
+    finish: finish as FurnitureFinish | undefined,
   };
 }
 

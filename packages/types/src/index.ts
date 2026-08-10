@@ -70,6 +70,8 @@ export interface CatalogItem {
   clearance: Clearance;
 }
 
+export type FurnitureFinish = "natural" | "painted" | "fabric" | "leather" | "metal";
+
 export interface Placement {
   id: string;
   catalogItemId: string;
@@ -77,6 +79,7 @@ export interface Placement {
   position: Vec3;
   rotationY: number;
   locked: boolean;
+  finish?: FurnitureFinish;
 }
 
 /** Bumped when the persisted shape changes; load migrates older files. */
