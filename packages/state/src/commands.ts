@@ -481,6 +481,22 @@ export function setFloorMaterial(
   };
 }
 
+export function setWallMaterial(
+  roomIndex: number,
+  from: Room["wallMaterial"],
+  to: Room["wallMaterial"],
+): Command {
+  const apply = (scene: Scene, wallMaterial: Room["wallMaterial"]): Scene => {
+    const room = roomAt(scene, roomIndex);
+    return room ? withRoom(scene, roomIndex, { ...room, wallMaterial }) : scene;
+  };
+  return {
+    label: "Change wall finish",
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
 export function setWallSettings(
   roomIndex: number,
   prev: WallSettings,

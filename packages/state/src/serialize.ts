@@ -8,6 +8,7 @@ import {
   type Vec3,
   type Wall,
   type FurnitureFinish,
+  type WallMaterial,
 } from "@layra/types";
 
 export type ParseResult =
@@ -103,6 +104,14 @@ function room(value: unknown, fallbackIndex: number): Room | null {
   if (!isRecord(value)) return null;
   if (typeof value.floorMaterial !== "string") return null;
   if (!Array.isArray(value.walls) || !Array.isArray(value.polygon)) return null;
+  const wallMaterial = value.wallMaterial === undefined ? undefined : value.wallMaterial;
+  if (
+    wallMaterial !== undefined &&
+    wallMaterial !== "plaster" &&
+    wallMaterial !== "warm-white" &&
+    wallMaterial !== "concrete" &&
+    wallMaterial !== "brick"
+  ) return null;
 
   const walls: Wall[] = [];
   for (const raw of value.walls) {
@@ -126,6 +135,7 @@ function room(value: unknown, fallbackIndex: number): Room | null {
     walls,
     polygon,
     floorMaterial: value.floorMaterial,
+    wallMaterial: wallMaterial as WallMaterial | undefined,
   };
 }
 

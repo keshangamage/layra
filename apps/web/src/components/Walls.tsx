@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
-import type { Vec2, Wall } from "@layra/types";
+import type { Vec2, Wall, WallMaterial } from "@layra/types";
 import { extrudeWalls, type WallOpening } from "@layra/geometry";
 import { useMeshGeometry } from "./useMeshGeometry";
 
@@ -12,6 +12,7 @@ interface WallsProps {
   thickness: number;
   openings: readonly (readonly WallOpening[])[];
   walls: readonly Wall[];
+  wallMaterial?: WallMaterial;
   onPointerDown?: (event: ThreeEvent<PointerEvent>) => void;
   onDoubleClick?: (event: ThreeEvent<MouseEvent>) => void;
 }
@@ -22,6 +23,7 @@ export function Walls({
   thickness,
   openings,
   walls,
+  wallMaterial = "plaster",
   onPointerDown,
   onDoubleClick,
 }: WallsProps) {
@@ -30,6 +32,12 @@ export function Walls({
     [polygon, height, thickness, openings],
   );
   const geometry = useMeshGeometry(data);
+  const finish = {
+    plaster: { color: "#e7e5e4", roughness: 0.92 },
+    "warm-white": { color: "#f1eadf", roughness: 0.82 },
+    concrete: { color: "#9b9a96", roughness: 0.96 },
+    brick: { color: "#9a5c47", roughness: 0.9 },
+  }[wallMaterial];
 
   if (polygon.length < 3) {
     return (
@@ -47,7 +55,7 @@ export function Walls({
               onDoubleClick={onDoubleClick}
             >
               <boxGeometry args={[length, wall.height, wall.thickness]} />
-              <meshStandardMaterial color="#e7e5e4" roughness={0.9} />
+              <meshStandardMaterial color={finish.color} roughness={finish.roughness} />
             </mesh>
           );
         })}
@@ -58,7 +66,7 @@ export function Walls({
     <mesh geometry={geometry} castShadow receiveShadow onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
     >
-      <meshStandardMaterial color="#e7e5e4" roughness={0.9} metalness={0} />
+      <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={0} />
     </mesh>
   );
 }

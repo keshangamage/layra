@@ -7,6 +7,7 @@ import {
   type OpeningType,
   type Placement,
   type FurnitureFinish,
+  type WallMaterial,
   type Scene,
   type Vec2,
   type Vec3,
@@ -34,6 +35,7 @@ import {
   renameRoom,
   rotatePlacement,
   setFloorMaterial,
+  setWallMaterial,
   setPlacementLock,
   setPlacementFinish,
   setPlacementFinishes,
@@ -58,6 +60,7 @@ import {
 } from "./collision";
 
 export type { FurnitureFinish } from "@layra/types";
+export type { WallMaterial } from "@layra/types";
 
 export type Mode = "draw" | "wall" | "edit" | "measure";
 
@@ -142,6 +145,7 @@ export interface EditorState {
 
   applyWallSettings: (next: Partial<WallSettings>) => void;
   applyFloorMaterial: (id: string) => void;
+  applyWallMaterial: (material: WallMaterial) => void;
 
   setActiveRoom: (index: number) => void;
   showOtherRooms: boolean;
@@ -967,6 +971,14 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const current = activeRoom(state).floorMaterial;
       if (current === id) return;
       state.execute(setFloorMaterial(state.activeRoomIndex, current, id));
+    },
+
+    applyWallMaterial: (material) => {
+      const state = get();
+      if (activeRoomLocked(state)) return;
+      const current = activeRoom(state).wallMaterial;
+      if (current === material) return;
+      state.execute(setWallMaterial(state.activeRoomIndex, current, material));
     },
 
     newScene: () => {
