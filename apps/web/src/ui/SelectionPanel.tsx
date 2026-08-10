@@ -6,6 +6,7 @@ import {
   isBlocked,
   type FurnitureAlignment,
   type FurnitureDistribution,
+  type FurnitureFinish,
 } from "@layra/state";
 import { formatLength } from "@layra/geometry";
 import { useMemo } from "react";
@@ -25,6 +26,13 @@ const ALIGNMENTS: { id: FurnitureAlignment; label: string }[] = [
   { id: "center-z", label: "Center Z" },
   { id: "back", label: "Back" },
 ];
+const FINISHES: { id: FurnitureFinish; label: string }[] = [
+  { id: "natural", label: "Natural" },
+  { id: "painted", label: "Painted" },
+  { id: "fabric", label: "Fabric" },
+  { id: "leather", label: "Leather" },
+  { id: "metal", label: "Metal" },
+];
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -43,6 +51,12 @@ export function SelectionPanel() {
 
   const selected = placements.find((p) => p.id === selectedId);
   const item = selected ? findCatalogItem(selected.catalogItemId) : undefined;
+  const selectedGroup = placements.filter((placement) => selectedIds.has(placement.id));
+  const groupFinish = selectedGroup.every(
+    (placement) => (placement.finish ?? "natural") === (selectedGroup[0]?.finish ?? "natural"),
+  )
+    ? selectedGroup[0]?.finish ?? "natural"
+    : "mixed";
 
   const status = useMemo(() => {
     if (!selected) return null;
@@ -70,6 +84,19 @@ export function SelectionPanel() {
         >
           Delete selected
         </button>
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-wide text-zinc-600">Group finish</span>
+          <select
+            value={groupFinish}
+            onChange={(event) => editor().setSelectedFinish(event.target.value as FurnitureFinish)}
+            className="mt-1 w-full rounded border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200"
+          >
+            {groupFinish === "mixed" && <option value="mixed">Mixed finishes</option>}
+            {FINISHES.map((finish) => (
+              <option key={finish.id} value={finish.id}>{finish.label}</option>
+            ))}
+          </select>
+        </label>
         <div>
           <p className="mb-1 text-[10px] uppercase tracking-wide text-zinc-600">Align</p>
           <div className="grid grid-cols-3 gap-1">
@@ -120,6 +147,24 @@ export function SelectionPanel() {
       </div>
 
       <p className="text-xs font-medium text-zinc-100">{item.name}</p>
+
+      <label className="block pt-1">
+        <span className="text-xs text-zinc-400">Finish</span>
+        <select
+          value={selected.finish ?? "natural"}
+          disabled={selected.locked}
+          onChange={(event) =>
+            editor().setSelectedFinish(event.target.value as FurnitureFinish)
+          }
+          className="mt-1 w-full rounded border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200 disabled:opacity-40"
+        >
+          {FINISHES.map((finish) => (
+            <option key={finish.id} value={finish.id}>
+              {finish.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <Row label="Position X" value={formatLength(selected.position.x)} />
       <Row label="Position Z" value={formatLength(selected.position.z)} />
