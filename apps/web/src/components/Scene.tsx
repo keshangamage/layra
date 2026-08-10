@@ -51,6 +51,7 @@ function ActiveRoom() {
   const height = useEditor((state) => currentWallSettings(state).height);
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
   const floorMaterial = useEditor((state) => activeRoom(state).floorMaterial);
+  const wallMaterial = useEditor((state) => activeRoom(state).wallMaterial);
 
   if (polygon.length < 3 && walls.length === 0) return null;
 
@@ -74,6 +75,7 @@ function ActiveRoom() {
         thickness={thickness}
         openings={openings}
         walls={walls}
+        wallMaterial={wallMaterial}
         onPointerDown={(event) => {
           // Only intercept when an opening is armed, so vertex dragging is safe.
           if (!editor().pendingOpening) return;
@@ -130,6 +132,7 @@ function OtherRooms() {
               thickness={thickness}
               openings={room.walls.map((wall) => wall.openings)}
               walls={room.walls}
+              wallMaterial={room.wallMaterial}
             />
             <RoomTrim walls={room.walls} />
           </group>

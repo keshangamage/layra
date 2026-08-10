@@ -14,6 +14,8 @@ export interface Vec3 {
 
 export type OpeningType = "door" | "window";
 
+export type WallMaterial = "plaster" | "warm-white" | "concrete" | "brick";
+
 /** Persisted and round-tripped, but not yet authored or cut into geometry. */
 export interface Opening {
   id: string;
@@ -44,6 +46,7 @@ export interface Room {
   /** Centerline loop, normalized to CCW. Derived from walls, stored so the renderer and edit handles agree. */
   polygon: Vec2[];
   floorMaterial: string;
+  wallMaterial?: WallMaterial;
 }
 
 export interface Footprint {

@@ -1,6 +1,7 @@
 "use client";
 
 import { currentWallSettings } from "@layra/state";
+import type { WallMaterial } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 
 interface SliderProps {
@@ -40,6 +41,7 @@ export function SettingsPanel() {
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
   const locked = useEditor((state) => state.scene.rooms[state.activeRoomIndex]?.locked === true);
   const lightingPreset = useEditor((state) => state.lightingPreset);
+  const wallMaterial = useEditor((state) => state.scene.rooms[state.activeRoomIndex]?.wallMaterial ?? "plaster");
 
   return (
     <section className="space-y-4 border-b border-zinc-800 p-4">
@@ -55,6 +57,20 @@ export function SettingsPanel() {
         onChange={(value) => editor().applyWallSettings({ height: value })}
         disabled={locked}
       />
+      <label className="block">
+        <span className="text-xs text-zinc-400">Wall finish</span>
+        <select
+          value={wallMaterial}
+          disabled={locked}
+          onChange={(event) => editor().applyWallMaterial(event.target.value as WallMaterial)}
+          className="mt-1.5 w-full rounded border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200 disabled:opacity-40"
+        >
+          <option value="plaster">Plaster</option>
+          <option value="warm-white">Warm white</option>
+          <option value="concrete">Concrete</option>
+          <option value="brick">Brick</option>
+        </select>
+      </label>
       <Slider
         label="Thickness"
         value={thickness}
