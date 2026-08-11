@@ -9,6 +9,7 @@ import {
   type Wall,
   type FurnitureFinish,
   type WallMaterial,
+  type CeilingMaterial,
 } from "@layra/types";
 
 export type ParseResult =
@@ -112,6 +113,15 @@ function room(value: unknown, fallbackIndex: number): Room | null {
     wallMaterial !== "concrete" &&
     wallMaterial !== "brick"
   ) return null;
+  const ceilingMaterial = value.ceilingMaterial === undefined ? undefined : value.ceilingMaterial;
+  if (
+    ceilingMaterial !== undefined &&
+    ceilingMaterial !== "painted" &&
+    ceilingMaterial !== "wood" &&
+    ceilingMaterial !== "concrete"
+  ) return null;
+  const ceilingVisible = value.ceilingVisible === undefined ? undefined : value.ceilingVisible;
+  if (ceilingVisible !== undefined && typeof ceilingVisible !== "boolean") return null;
 
   const walls: Wall[] = [];
   for (const raw of value.walls) {
@@ -136,6 +146,8 @@ function room(value: unknown, fallbackIndex: number): Room | null {
     polygon,
     floorMaterial: value.floorMaterial,
     wallMaterial: wallMaterial as WallMaterial | undefined,
+    ceilingMaterial: ceilingMaterial as CeilingMaterial | undefined,
+    ceilingVisible,
   };
 }
 

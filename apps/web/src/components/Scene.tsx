@@ -10,6 +10,7 @@ import { activeRoom, currentWallSettings,
 import { editor, useEditor } from "@/state/editor";
 import { Walls } from "./Walls";
 import { Floor } from "./Floor";
+import { Ceiling } from "./Ceiling";
 import { DrawController } from "./DrawController";
 import { RoomDragController } from "./RoomDragController";
 import { DraftPolyline } from "./DraftPolyline";
@@ -52,6 +53,8 @@ function ActiveRoom() {
   const thickness = useEditor((state) => currentWallSettings(state).thickness);
   const floorMaterial = useEditor((state) => activeRoom(state).floorMaterial);
   const wallMaterial = useEditor((state) => activeRoom(state).wallMaterial);
+  const ceilingMaterial = useEditor((state) => activeRoom(state).ceilingMaterial);
+  const ceilingVisible = useEditor((state) => activeRoom(state).ceilingVisible === true);
 
   if (polygon.length < 3 && walls.length === 0) return null;
 
@@ -87,6 +90,9 @@ function ActiveRoom() {
           editor().addVertexAt({ x: event.point.x, z: event.point.z });
         }}
         />
+      {polygon.length >= 3 && ceilingVisible && (
+        <Ceiling polygon={polygon} height={height} material={ceilingMaterial} />
+      )}
       <RoomTrim walls={walls} />
     </>
   );
@@ -134,6 +140,13 @@ function OtherRooms() {
               walls={room.walls}
               wallMaterial={room.wallMaterial}
             />
+            {room.polygon.length >= 3 && room.ceilingVisible === true && (
+              <Ceiling
+                polygon={room.polygon}
+                height={height}
+                material={room.ceilingMaterial}
+              />
+            )}
             <RoomTrim walls={room.walls} />
           </group>
         );
