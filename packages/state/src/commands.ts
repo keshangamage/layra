@@ -497,6 +497,34 @@ export function setWallMaterial(
   };
 }
 
+export function setCeilingMaterial(
+  roomIndex: number,
+  from: Room["ceilingMaterial"],
+  to: Room["ceilingMaterial"],
+): Command {
+  const apply = (scene: Scene, ceilingMaterial: Room["ceilingMaterial"]): Scene => {
+    const room = roomAt(scene, roomIndex);
+    return room ? withRoom(scene, roomIndex, { ...room, ceilingMaterial }) : scene;
+  };
+  return {
+    label: "Change ceiling finish",
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
+export function setCeilingVisible(roomIndex: number, from: boolean, to: boolean): Command {
+  const apply = (scene: Scene, ceilingVisible: boolean): Scene => {
+    const room = roomAt(scene, roomIndex);
+    return room ? withRoom(scene, roomIndex, { ...room, ceilingVisible }) : scene;
+  };
+  return {
+    label: to ? "Show ceiling" : "Hide ceiling",
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
 export function setWallSettings(
   roomIndex: number,
   prev: WallSettings,

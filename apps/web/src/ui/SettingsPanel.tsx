@@ -2,6 +2,7 @@
 
 import { currentWallSettings } from "@layra/state";
 import type { WallMaterial } from "@layra/state";
+import type { CeilingMaterial } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 
 interface SliderProps {
@@ -42,6 +43,8 @@ export function SettingsPanel() {
   const locked = useEditor((state) => state.scene.rooms[state.activeRoomIndex]?.locked === true);
   const lightingPreset = useEditor((state) => state.lightingPreset);
   const wallMaterial = useEditor((state) => state.scene.rooms[state.activeRoomIndex]?.wallMaterial ?? "plaster");
+  const ceilingMaterial = useEditor((state) => state.scene.rooms[state.activeRoomIndex]?.ceilingMaterial ?? "painted");
+  const ceilingVisible = useEditor((state) => state.scene.rooms[state.activeRoomIndex]?.ceilingVisible === true);
 
   return (
     <section className="space-y-4 border-b border-zinc-800 p-4">
@@ -80,6 +83,32 @@ export function SettingsPanel() {
         onChange={(value) => editor().applyWallSettings({ thickness: value })}
         disabled={locked}
       />
+      <div className="border-t border-zinc-800 pt-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Ceiling
+        </h2>
+        <button
+          type="button"
+          onClick={() => editor().toggleCeiling()}
+          disabled={locked}
+          className="mt-2 w-full rounded border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-left text-xs text-zinc-200 disabled:opacity-40"
+        >
+          {ceilingVisible ? "Ceiling visible" : "Ceiling hidden"}
+        </button>
+        <label className="mt-2 block">
+          <span className="text-xs text-zinc-400">Ceiling finish</span>
+          <select
+            value={ceilingMaterial}
+            disabled={locked}
+            onChange={(event) => editor().applyCeilingMaterial(event.target.value as CeilingMaterial)}
+            className="mt-1.5 w-full rounded border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200 disabled:opacity-40"
+          >
+            <option value="painted">Painted</option>
+            <option value="wood">Wood</option>
+            <option value="concrete">Concrete</option>
+          </select>
+        </label>
+      </div>
       <div className="border-t border-zinc-800 pt-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
           Lighting

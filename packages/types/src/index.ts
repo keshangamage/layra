@@ -15,6 +15,7 @@ export interface Vec3 {
 export type OpeningType = "door" | "window";
 
 export type WallMaterial = "plaster" | "warm-white" | "concrete" | "brick";
+export type CeilingMaterial = "painted" | "wood" | "concrete";
 
 /** Persisted and round-tripped, but not yet authored or cut into geometry. */
 export interface Opening {
@@ -47,6 +48,8 @@ export interface Room {
   polygon: Vec2[];
   floorMaterial: string;
   wallMaterial?: WallMaterial;
+  ceilingMaterial?: CeilingMaterial;
+  ceilingVisible?: boolean;
 }
 
 export interface Footprint {

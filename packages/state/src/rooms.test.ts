@@ -98,6 +98,20 @@ describe("editing targets the active room", () => {
     expect(rooms(s)[0]?.floorMaterial).toBe("default");
   });
 
+  it("applies ceiling settings to the active room and makes them undoable", () => {
+    const s = storeWithRoom();
+    s.getState().applyCeilingMaterial("wood");
+    s.getState().toggleCeiling();
+
+    expect(rooms(s)[0]?.ceilingMaterial).toBe("wood");
+    expect(rooms(s)[0]?.ceilingVisible).toBe(true);
+
+    s.getState().undo();
+    expect(rooms(s)[0]?.ceilingVisible).toBe(false);
+    s.getState().undo();
+    expect(rooms(s)[0]?.ceilingMaterial).toBeUndefined();
+  });
+
   it("reports the active room through activeRoom", () => {
     const s = storeWithRoom();
     s.getState().addRoom();

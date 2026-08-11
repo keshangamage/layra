@@ -50,6 +50,13 @@ describe("round trip", () => {
     expect(parsedOrThrow(serializeScene(scene))).toEqual(scene);
   });
 
+  it("preserves ceiling settings", () => {
+    const scene = sceneWithRoom();
+    scene.rooms[0]!.ceilingMaterial = "wood";
+    scene.rooms[0]!.ceilingVisible = true;
+    expect(parsedOrThrow(serializeScene(scene))).toEqual(scene);
+  });
+
   it("preserves placements", () => {
     const scene = sceneWithRoom();
     scene.placements.push({
