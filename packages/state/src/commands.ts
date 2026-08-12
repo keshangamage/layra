@@ -809,6 +809,33 @@ export function updateOpening(
   };
 }
 
+export function setOpeningOpen(
+  roomIndex: number,
+  wallIndex: number,
+  openingId: string,
+  from: Opening["open"],
+  to: boolean,
+): Command {
+  const apply = (scene: Scene, open: Opening["open"]): Scene =>
+    mapWall(scene, roomIndex, wallIndex, (wall) => ({
+      ...wall,
+      openings: wall.openings.map((opening) => {
+        if (opening.id !== openingId) return opening;
+        if (open === undefined) {
+          const closed = { ...opening };
+          delete closed.open;
+          return closed;
+        }
+        return { ...opening, open };
+      }),
+    }));
+  return {
+    label: to ? "Open door" : "Close door",
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
 export function loadScene(prev: Scene, next: Scene): Command {
   return {
     label: "Load scene",

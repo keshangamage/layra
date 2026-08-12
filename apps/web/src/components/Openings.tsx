@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { openingTransform } from "@layra/geometry";
 import type { Opening } from "@layra/types";
 import { activeRoom } from "@layra/state";
@@ -15,6 +15,7 @@ interface Panel {
   rotationY: number;
   width: number;
   height: number;
+  open: boolean;
 }
 
 function Box({
@@ -43,16 +44,21 @@ function OpeningModel({ panel, active }: { panel: Panel; active: boolean }) {
   const halfHeight = panel.height / 2;
 
   if (panel.opening.type === "door") {
+    const leaf = (
+      <Box
+        size={[Math.max(panel.width - 0.16, 0.1), Math.max(panel.height - 0.16, 0.1), 0.05]}
+        position={[panel.width / 2, -0.01, 0.03]}
+        color="#a87952"
+      />
+    );
     return (
       <group>
         <Box size={[0.08, panel.height, 0.12]} position={[-halfWidth + 0.04, 0, 0]} color={frame} />
         <Box size={[0.08, panel.height, 0.12]} position={[halfWidth - 0.04, 0, 0]} color={frame} />
         <Box size={[panel.width, 0.08, 0.12]} position={[0, halfHeight - 0.04, 0]} color={frame} />
-        <Box
-          size={[Math.max(panel.width - 0.16, 0.1), Math.max(panel.height - 0.16, 0.1), 0.05]}
-          position={[0, -0.01, 0.03]}
-          color="#a87952"
-        />
+        <group position={[-halfWidth, 0, 0]} rotation={[0, panel.open ? -Math.PI / 2 : 0, 0]}>
+          {leaf}
+        </group>
         <Box size={[0.035, 0.035, 0.035]} position={[panel.width * 0.28, 0, 0.07]} color="#d4af37" metalness={0.75} />
       </group>
     );
@@ -77,6 +83,7 @@ export function Openings() {
   const selected = useEditor((state) => state.selectedOpening);
   const groundAt = useGroundPointer();
   const [hovered, setHovered] = useState<string | null>(null);
+  const dragged = useRef(false);
 
   const panels = useMemo(() => {
     const result: Panel[] = [];
@@ -97,6 +104,7 @@ export function Openings() {
           rotationY: transform.rotationY,
           width: transform.width,
           height: transform.height,
+          open: opening.open === true,
         });
       }
     });
@@ -106,6 +114,7 @@ export function Openings() {
   useEffect(() => {
     if (!drag) return;
     const onMove = (event: PointerEvent) => {
+      dragged.current = true;
       const point = groundAt(event);
       if (point) editor().updateOpeningDrag(point);
     };
@@ -146,9 +155,16 @@ export function Openings() {
               }
               onPointerDown={(event) => {
                 event.stopPropagation();
+                dragged.current = false;
                 const point = groundAt(event.nativeEvent);
                 if (point) {
                   editor().beginOpeningDrag(panel.wallIndex, panel.key, point);
+                }
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (!dragged.current && panel.opening.type === "door") {
+                  editor().toggleOpening(panel.wallIndex, panel.key);
                 }
               }}
             >

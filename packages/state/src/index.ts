@@ -24,6 +24,7 @@ export {
   roomFromPolygon,
   rotatePlacement,
   setFloorMaterial,
+  setOpeningOpen,
   setWallMaterial,
   setCeilingMaterial,
   setCeilingVisible,

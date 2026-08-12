@@ -50,6 +50,20 @@ describe("round trip", () => {
     expect(parsedOrThrow(serializeScene(scene))).toEqual(scene);
   });
 
+  it("preserves a door open state", () => {
+    const scene = sceneWithRoom();
+    scene.rooms[0]!.walls[0]!.openings.push({
+      id: "d1",
+      type: "door",
+      offset: 1,
+      width: 0.9,
+      height: 2.05,
+      sillHeight: 0,
+      open: true,
+    });
+    expect(parsedOrThrow(serializeScene(scene))).toEqual(scene);
+  });
+
   it("preserves ceiling settings", () => {
     const scene = sceneWithRoom();
     scene.rooms[0]!.ceilingMaterial = "wood";
