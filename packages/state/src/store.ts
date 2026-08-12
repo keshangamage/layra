@@ -36,6 +36,7 @@ import {
   renameRoom,
   rotatePlacement,
   setFloorMaterial,
+  setOpeningOpen,
   setWallMaterial,
   setCeilingMaterial,
   setCeilingVisible,
@@ -203,6 +204,7 @@ export interface EditorState {
   selectedOpening: { wallIndex: number; id: string } | null;
   selectOpening: (ref: { wallIndex: number; id: string } | null) => void;
   updateSelectedOpening: (patch: Partial<OpeningShape>) => void;
+  toggleOpening: (wallIndex: number, openingId: string) => void;
 
   /** Armed catalog item; the next click in the room places it. */
   pendingFurniture: string | null;
@@ -638,6 +640,25 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       // Key by field so dragging one slider merges but switching does not.
       const field = Object.keys(patch)[0] ?? "size";
       state.execute(updateOpening(state.activeRoomIndex, reference.wallIndex, opening, next, field));
+    },
+
+    toggleOpening: (wallIndex, openingId) => {
+      const state = get();
+      if (activeRoomLocked(state)) return;
+      const opening = activeRoom(state).walls[wallIndex]?.openings.find(
+        (candidate) => candidate.id === openingId,
+      );
+      if (!opening || opening.type !== "door") return;
+      state.execute(
+        setOpeningOpen(
+          state.activeRoomIndex,
+          wallIndex,
+          openingId,
+          opening.open,
+          opening.open !== true,
+        ),
+      );
+      set({ selectedOpening: { wallIndex, id: openingId } });
     },
 
     addDraftPoint: (point) =>

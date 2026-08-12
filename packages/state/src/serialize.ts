@@ -44,6 +44,8 @@ function opening(value: unknown): Opening | null {
   if (value.type !== "door" && value.type !== "window") return null;
   if (!num(value.offset) || !num(value.width) || !num(value.height)) return null;
   if (!num(value.sillHeight)) return null;
+  const open = value.open === undefined ? undefined : value.open;
+  if (open !== undefined && typeof open !== "boolean") return null;
   return {
     id: value.id,
     type: value.type,
@@ -51,6 +53,7 @@ function opening(value: unknown): Opening | null {
     width: value.width,
     height: value.height,
     sillHeight: value.sillHeight,
+    open,
   };
 }
 

@@ -175,6 +175,20 @@ describe("editing", () => {
     });
   });
 
+  it("opens and closes doors with undo support", () => {
+    const s = storeWithDoor();
+    const id = opening(s).id;
+
+    s.getState().toggleOpening(0, id);
+    expect(opening(s).open).toBe(true);
+    expect(s.getState().past.at(-1)?.label).toBe("Open door");
+
+    s.getState().undo();
+    expect(opening(s).open).toBeUndefined();
+    s.getState().redo();
+    expect(opening(s).open).toBe(true);
+  });
+
   it("moves along the wall", () => {
     const s = storeWithDoor();
     s.getState().updateSelectedOpening({ offset: 1 });

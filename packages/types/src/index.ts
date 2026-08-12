@@ -26,6 +26,7 @@ export interface Opening {
   width: number;
   height: number;
   sillHeight: number;
+  open?: boolean;
 }
 
 /** One wall segment, measured along its centerline. */

@@ -38,8 +38,9 @@ function Slider({ label, value, max, field, disabled }: SliderProps) {
   );
 }
 
-function Shape({ opening, wallLength, wallHeight, disabled }: {
+function Shape({ opening, wallIndex, wallLength, wallHeight, disabled }: {
   opening: Opening;
+  wallIndex: number;
   wallLength: number;
   wallHeight: number;
   disabled: boolean;
@@ -53,6 +54,17 @@ function Shape({ opening, wallLength, wallHeight, disabled }: {
       <Slider label="Width" value={opening.width} max={wallLength} field="width" disabled={disabled} />
       <Slider label="Height" value={opening.height} max={wallHeight - opening.sillHeight} field="height" disabled={disabled} />
       <Slider label="Sill" value={opening.sillHeight} max={wallHeight - opening.height} field="sillHeight" disabled={disabled} />
+      {opening.type === "door" && (
+        <button
+          type="button"
+          disabled={disabled}
+          aria-pressed={opening.open === true}
+          onClick={() => editor().toggleOpening(wallIndex, opening.id)}
+          className="w-full rounded border border-zinc-800 px-2 py-1.5 text-left text-[11px] text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+        >
+          {opening.open === true ? "Close door" : "Open door"}
+        </button>
+      )}
       <p className="text-[10px] text-zinc-600">Minimum {MIN_OPENING} m.</p>
     </div>
   );
@@ -148,6 +160,7 @@ export function OpeningsPanel() {
           {selected && selectedWall && (
             <Shape
               opening={selected}
+              wallIndex={selectedRef!.wallIndex}
               wallLength={distance(selectedWall.start, selectedWall.end)}
               wallHeight={selectedWall.height}
               disabled={locked}
