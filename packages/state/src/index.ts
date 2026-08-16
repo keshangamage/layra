@@ -25,6 +25,7 @@ export {
   rotatePlacement,
   setFloorMaterial,
   setOpeningOpen,
+  setWindowCurtainsOpen,
   setWallMaterial,
   setCeilingMaterial,
   setCeilingVisible,

@@ -46,6 +46,8 @@ function opening(value: unknown): Opening | null {
   if (!num(value.sillHeight)) return null;
   const open = value.open === undefined ? undefined : value.open;
   if (open !== undefined && typeof open !== "boolean") return null;
+  const curtainsOpen = value.curtainsOpen === undefined ? undefined : value.curtainsOpen;
+  if (curtainsOpen !== undefined && typeof curtainsOpen !== "boolean") return null;
   return {
     id: value.id,
     type: value.type,
@@ -54,6 +56,7 @@ function opening(value: unknown): Opening | null {
     height: value.height,
     sillHeight: value.sillHeight,
     open,
+    curtainsOpen,
   };
 }
 

@@ -65,6 +65,17 @@ function Shape({ opening, wallIndex, wallLength, wallHeight, disabled }: {
           {opening.open === true ? "Close door" : "Open door"}
         </button>
       )}
+      {opening.type === "window" && (
+        <button
+          type="button"
+          disabled={disabled}
+          aria-pressed={opening.curtainsOpen === true}
+          onClick={() => editor().toggleOpening(wallIndex, opening.id)}
+          className="w-full rounded border border-zinc-800 px-2 py-1.5 text-left text-[11px] text-zinc-300 hover:bg-zinc-800 disabled:opacity-40"
+        >
+          {opening.curtainsOpen === true ? "Close curtains" : "Open curtains"}
+        </button>
+      )}
       <p className="text-[10px] text-zinc-600">Minimum {MIN_OPENING} m.</p>
     </div>
   );
