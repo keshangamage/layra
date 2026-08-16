@@ -64,6 +64,20 @@ describe("round trip", () => {
     expect(parsedOrThrow(serializeScene(scene))).toEqual(scene);
   });
 
+  it("preserves a window curtain state", () => {
+    const scene = sceneWithRoom();
+    scene.rooms[0]!.walls[0]!.openings.push({
+      id: "w1",
+      type: "window",
+      offset: 1,
+      width: 1.2,
+      height: 1.2,
+      sillHeight: 0.9,
+      curtainsOpen: true,
+    });
+    expect(parsedOrThrow(serializeScene(scene))).toEqual(scene);
+  });
+
   it("preserves ceiling settings", () => {
     const scene = sceneWithRoom();
     scene.rooms[0]!.ceilingMaterial = "wood";

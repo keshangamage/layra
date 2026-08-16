@@ -16,6 +16,7 @@ interface Panel {
   width: number;
   height: number;
   open: boolean;
+  curtainsOpen: boolean;
 }
 
 function Box({
@@ -64,8 +65,28 @@ function OpeningModel({ panel, active }: { panel: Panel; active: boolean }) {
     );
   }
 
+  const curtainColor = active ? "#38bdf8" : "#c08473";
+  const curtainWidth = panel.curtainsOpen ? 0.12 : Math.max(panel.width * 0.26, 0.18);
+  const curtainY = Math.max(panel.height * 0.48, 0.3);
+  const curtainX = panel.width / 2 - curtainWidth / 2 - 0.04;
   return (
     <group>
+      <Box
+        size={[panel.width + 0.12, 0.035, 0.06]}
+        position={[0, halfHeight - 0.08, 0.08]}
+        color="#9f8068"
+        metalness={0.15}
+      />
+      <Box
+        size={[curtainWidth, curtainY, 0.035]}
+        position={[-curtainX, (halfHeight - curtainY) / 2, 0.08]}
+        color={curtainColor}
+      />
+      <Box
+        size={[curtainWidth, curtainY, 0.035]}
+        position={[curtainX, (halfHeight - curtainY) / 2, 0.08]}
+        color={curtainColor}
+      />
       <Box size={[0.07, panel.height, 0.1]} position={[-halfWidth + 0.035, 0, 0]} color={frame} />
       <Box size={[0.07, panel.height, 0.1]} position={[halfWidth - 0.035, 0, 0]} color={frame} />
       <Box size={[panel.width, 0.07, 0.1]} position={[0, -halfHeight + 0.035, 0]} color={frame} />
@@ -105,6 +126,7 @@ export function Openings() {
           width: transform.width,
           height: transform.height,
           open: opening.open === true,
+          curtainsOpen: opening.curtainsOpen === true,
         });
       }
     });
@@ -163,7 +185,7 @@ export function Openings() {
               }}
               onClick={(event) => {
                 event.stopPropagation();
-                if (!dragged.current && panel.opening.type === "door") {
+                if (!dragged.current) {
                   editor().toggleOpening(panel.wallIndex, panel.key);
                 }
               }}

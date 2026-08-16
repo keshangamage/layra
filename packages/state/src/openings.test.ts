@@ -164,6 +164,13 @@ describe("editing", () => {
     return s;
   }
 
+  function storeWithWindow() {
+    const s = storeWithRoom();
+    s.getState().armOpening("window");
+    s.getState().placeOpeningAt({ x: 3, z: 0 });
+    return s;
+  }
+
   const opening = (s: ReturnType<typeof storeWithRoom>) =>
     activeRoom(s.getState()).walls[0]!.openings[0]!;
 
@@ -187,6 +194,18 @@ describe("editing", () => {
     expect(opening(s).open).toBeUndefined();
     s.getState().redo();
     expect(opening(s).open).toBe(true);
+  });
+
+  it("opens and closes window curtains with undo support", () => {
+    const s = storeWithWindow();
+    const current = opening(s);
+
+    s.getState().toggleOpening(0, current.id);
+    expect(opening(s).curtainsOpen).toBe(true);
+    expect(s.getState().past.at(-1)?.label).toBe("Open curtains");
+
+    s.getState().undo();
+    expect(opening(s).curtainsOpen).toBeUndefined();
   });
 
   it("moves along the wall", () => {

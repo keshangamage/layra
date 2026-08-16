@@ -836,6 +836,33 @@ export function setOpeningOpen(
   };
 }
 
+export function setWindowCurtainsOpen(
+  roomIndex: number,
+  wallIndex: number,
+  openingId: string,
+  from: Opening["curtainsOpen"],
+  to: boolean,
+): Command {
+  const apply = (scene: Scene, curtainsOpen: Opening["curtainsOpen"]): Scene =>
+    mapWall(scene, roomIndex, wallIndex, (wall) => ({
+      ...wall,
+      openings: wall.openings.map((opening) => {
+        if (opening.id !== openingId) return opening;
+        if (curtainsOpen === undefined) {
+          const next = { ...opening };
+          delete next.curtainsOpen;
+          return next;
+        }
+        return { ...opening, curtainsOpen };
+      }),
+    }));
+  return {
+    label: to ? "Open curtains" : "Close curtains",
+    do: (scene) => apply(scene, to),
+    undo: (scene) => apply(scene, from),
+  };
+}
+
 export function loadScene(prev: Scene, next: Scene): Command {
   return {
     label: "Load scene",

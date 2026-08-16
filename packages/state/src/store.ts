@@ -37,6 +37,7 @@ import {
   rotatePlacement,
   setFloorMaterial,
   setOpeningOpen,
+  setWindowCurtainsOpen,
   setWallMaterial,
   setCeilingMaterial,
   setCeilingVisible,
@@ -648,16 +649,28 @@ export function createEditorStore(initial?: Partial<EditorState>): EditorStore {
       const opening = activeRoom(state).walls[wallIndex]?.openings.find(
         (candidate) => candidate.id === openingId,
       );
-      if (!opening || opening.type !== "door") return;
-      state.execute(
-        setOpeningOpen(
-          state.activeRoomIndex,
-          wallIndex,
-          openingId,
-          opening.open,
-          opening.open !== true,
-        ),
-      );
+      if (!opening) return;
+      if (opening.type === "door") {
+        state.execute(
+          setOpeningOpen(
+            state.activeRoomIndex,
+            wallIndex,
+            openingId,
+            opening.open,
+            opening.open !== true,
+          ),
+        );
+      } else {
+        state.execute(
+          setWindowCurtainsOpen(
+            state.activeRoomIndex,
+            wallIndex,
+            openingId,
+            opening.curtainsOpen,
+            opening.curtainsOpen !== true,
+          ),
+        );
+      }
       set({ selectedOpening: { wallIndex, id: openingId } });
     },
 
