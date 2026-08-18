@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
 import type { Vec2, Wall, WallMaterial } from "@layra/types";
 import { extrudeWalls, type WallOpening } from "@layra/geometry";
+import { Surface } from "./Surface";
+import type { SurfaceKind } from "./textures";
 import { useMeshGeometry } from "./useMeshGeometry";
 
 interface WallsProps {
@@ -32,12 +34,13 @@ export function Walls({
     [polygon, height, thickness, openings],
   );
   const geometry = useMeshGeometry(data);
-  const finish = {
-    plaster: { color: "#e7e5e4", roughness: 0.92 },
-    "warm-white": { color: "#f1eadf", roughness: 0.82 },
-    concrete: { color: "#9b9a96", roughness: 0.96 },
-    brick: { color: "#9a5c47", roughness: 0.9 },
-  }[wallMaterial];
+  const finishes: Record<WallMaterial, { color: string; roughness: number; kind: SurfaceKind; relief: number }> = {
+    plaster: { color: "#e7e5e4", roughness: 0.92, kind: "plaster", relief: 1 },
+    "warm-white": { color: "#f1eadf", roughness: 0.82, kind: "plaster", relief: 0.8 },
+    concrete: { color: "#9b9a96", roughness: 0.96, kind: "concrete", relief: 1.2 },
+    brick: { color: "#9a5c47", roughness: 0.9, kind: "brick", relief: 1.6 },
+  };
+  const finish = finishes[wallMaterial];
 
   if (polygon.length < 3) {
     return (
@@ -55,7 +58,14 @@ export function Walls({
               onDoubleClick={onDoubleClick}
             >
               <boxGeometry args={[length, wall.height, wall.thickness]} />
-              <meshStandardMaterial color={finish.color} roughness={finish.roughness} />
+              <Surface
+                kind={finish.kind}
+                color={finish.color}
+                roughness={finish.roughness}
+                span={Math.max(length, wall.height)}
+                relief={finish.relief}
+                envMapIntensity={0.85}
+              />
             </mesh>
           );
         })}
@@ -66,7 +76,14 @@ export function Walls({
     <mesh geometry={geometry} castShadow receiveShadow onPointerDown={onPointerDown}
       onDoubleClick={onDoubleClick}
     >
-      <meshStandardMaterial color={finish.color} roughness={finish.roughness} metalness={0} />
+      <Surface
+        kind={finish.kind}
+        color={finish.color}
+        roughness={finish.roughness}
+        worldUnits
+        relief={finish.relief}
+        envMapIntensity={0.85}
+      />
     </mesh>
   );
 }

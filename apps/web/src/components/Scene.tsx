@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { ContactShadows, Grid, OrbitControls } from "@react-three/drei";
-import { Vector3 } from "three";
+import { ACESFilmicToneMapping, Vector3 } from "three";
 import { bounds } from "@layra/geometry";
 import { activeRoom, currentWallSettings,
 } from "@layra/state";
@@ -22,6 +22,7 @@ import { Openings } from "./Openings";
 import { Dimensions } from "./Dimensions";
 import { MeasureTool } from "./MeasureTool";
 import { RoomTrim } from "./RoomTrim";
+import { RoomEnvironment } from "./RoomEnvironment";
 import { WalkthroughController } from "./WalkthroughController";
 
 /** The room being edited, which follows an in-progress vertex drag. */
@@ -183,37 +184,40 @@ export default function Scene() {
   const lightingPreset = useEditor((state) => state.lightingPreset);
   const lighting = {
     daylight: {
-      ambient: 0.6,
-      key: 2,
-      keyColor: "#fff7ed",
-      keyPosition: [6, 10, 4] as [number, number, number],
-      fill: 0,
-      fillColor: "#ffffff",
+      ambient: 0.16,
+      key: 2.4,
+      keyColor: "#fff4e2",
+      keyPosition: [5, 15, 4] as [number, number, number],
+      fill: 0.22,
+      fillColor: "#cddffa",
       point: 0,
       pointColor: "#ffffff",
-      background: "#18181b",
+      background: "#1b1b1e",
+      exposure: 1,
     },
     warm: {
-      ambient: 0.32,
-      key: 1.05,
-      keyColor: "#ffd6a3",
-      keyPosition: [-4, 7, 3] as [number, number, number],
-      fill: 0.25,
-      fillColor: "#fda4af",
-      point: 1.1,
+      ambient: 0.1,
+      key: 1.2,
+      keyColor: "#ffcf9c",
+      keyPosition: [-4, 12, 3] as [number, number, number],
+      fill: 0.12,
+      fillColor: "#c98f9c",
+      point: 1.6,
       pointColor: "#ffb45b",
-      background: "#211b1a",
+      background: "#1d1715",
+      exposure: 1.15,
     },
     studio: {
-      ambient: 0.75,
-      key: 1.55,
-      keyColor: "#e0f2fe",
-      keyPosition: [5, 8, 5] as [number, number, number],
-      fill: 0.85,
-      fillColor: "#c4b5fd",
+      ambient: 0.2,
+      key: 1.7,
+      keyColor: "#f0f6ff",
+      keyPosition: [4, 14, 4] as [number, number, number],
+      fill: 0.45,
+      fillColor: "#cdd7ea",
       point: 0,
       pointColor: "#ffffff",
-      background: "#172033",
+      background: "#15181f",
+      exposure: 1,
     },
   }[lightingPreset];
 
@@ -265,8 +269,10 @@ export default function Scene() {
           setContextLost(false);
         });
       }}
-      // "percentage" is PCFShadowMap; the default maps to the deprecated PCFSoftShadowMap.
-      shadows="percentage"
+      // PCFSoftShadowMap: a hard-edged sun wedge across a floor plan reads as a
+      // rendering artefact rather than as light.
+      shadows="soft"
+      gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, toneMappingExposure: lighting.exposure }}
       camera={{ position: [7, 6, 8], fov: 45, near: 0.1, far: 200 }}
       style={{ background: lighting.background }}
       // Fires only when a click hit no mesh, unlike a raw canvas pointerup.
@@ -275,6 +281,7 @@ export default function Scene() {
         editor().selectVertex(null);
       }}
     >
+      <RoomEnvironment preset={lightingPreset} />
       <ambientLight intensity={lighting.ambient} />
       <directionalLight
         position={lighting.keyPosition}
@@ -287,7 +294,11 @@ export default function Scene() {
         shadow-camera-top={shadowRadius}
         shadow-camera-bottom={-shadowRadius}
         shadow-camera-near={0.1}
-        shadow-camera-far={40}
+        shadow-camera-far={45}
+        shadow-radius={3}
+        // Sloped and rounded faces self-shadow badly without a normal bias.
+        shadow-normalBias={0.015}
+        shadow-bias={-0.0004}
       />
       <directionalLight
         position={[-6, 5, -4]}
@@ -303,12 +314,14 @@ export default function Scene() {
       />
       <ContactShadows
         position={[extent.center.x, 0.006, extent.center.z]}
-        opacity={0.28}
+        opacity={0.45}
         scale={Math.max(extent.size.x, extent.size.z, 5) * 1.4}
-        blur={2.4}
-        far={3.5}
-        resolution={512}
-        color="#19130d"
+        blur={2}
+        // Short range on purpose: this is contact darkening under furniture, so
+        // anything as tall as a wall must not register and cast a slab of grey.
+        far={0.7}
+        resolution={1024}
+        color="#150f0a"
       />
 
       <OtherRooms />
