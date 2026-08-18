@@ -1,7 +1,7 @@
 import type { CatalogItem } from "@layra/types";
 
-// Dimensions in metres. gltfUrl records the intended asset path; until those
-// exist, the renderer draws a box from footprint and height.
+// Dimensions in metres. gltfUrl records the intended asset path; the renderer
+// builds each piece procedurally instead, so nothing loads it yet.
 export const CATALOG: CatalogItem[] = [
   {
     id: "sofa-3",
@@ -200,7 +200,7 @@ export const CATALOG: CatalogItem[] = [
     footprint: { w: 1, d: 0.08 },
     height: 0.9,
     wallMounted: true,
-    mountHeight: 1.35,
+    mountHeight: 1.05,
     clearance: { front: 0.1, sides: 0, back: 0 },
   },
   {

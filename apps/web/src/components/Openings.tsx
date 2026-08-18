@@ -6,6 +6,7 @@ import type { Opening } from "@layra/types";
 import { activeRoom } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 import { OpeningModel } from "./openings/models";
+import { WindowLights, type WindowLight } from "./openings/WindowLights";
 import { useGroundPointer } from "./useGroundPointer";
 
 interface Panel {
@@ -57,6 +58,26 @@ export function Openings() {
     return result;
   }, [walls, drag]);
 
+  const windowLights = useMemo<WindowLight[]>(
+    () =>
+      panels
+        .filter((panel) => panel.opening.type === "window")
+        .map((panel) => ({
+          key: panel.key,
+          // Clear of the frame and reveal, which sit right on the wall face and
+          // would otherwise take the whole falloff.
+          position: [
+            panel.position[0] + Math.sin(panel.rotationY) * (panel.thickness / 2 + 0.12),
+            panel.position[1],
+            panel.position[2] + Math.cos(panel.rotationY) * (panel.thickness / 2 + 0.12),
+          ],
+          rotationY: panel.rotationY,
+          width: panel.width,
+          height: panel.height,
+        })),
+    [panels],
+  );
+
   useEffect(() => {
     if (!drag) return;
     const onMove = (event: PointerEvent) => {
@@ -83,6 +104,7 @@ export function Openings() {
 
   return (
     <group>
+      <WindowLights windows={windowLights} />
       {panels.map((panel) => {
         const active = selected?.id === panel.key || hovered === panel.key;
         return (

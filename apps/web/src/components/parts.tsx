@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { RoundedBox } from "@react-three/drei";
 import { DoubleSide, Vector2, type Side } from "three";
+import { useCylinder, useRoundedBox } from "./geometry";
 import { Surface } from "./Surface";
 import type { SurfaceKind } from "./textures";
 
@@ -20,6 +20,8 @@ interface SlabProps {
   radius?: number;
   relief?: number;
   scaleY?: number;
+  /** Rubbed-back edges. Set to 0 for glass, mirrors and anything factory-fresh. */
+  wear?: number;
 }
 
 /**
@@ -37,19 +39,17 @@ export function Slab({
   radius,
   relief = 1,
   scaleY = 1,
+  wear = 0.35,
 }: SlabProps) {
   const smallest = Math.min(size[0], size[1], size[2]);
   const bevel = Math.max(0.002, Math.min(radius ?? smallest * 0.16, smallest * 0.49));
-  const span = Math.max(size[0], size[1], size[2]);
+  const geometry = useRoundedBox(size[0], size[1], size[2], bevel, 3);
   return (
-    <RoundedBox
-      args={size}
+    <mesh
+      geometry={geometry}
       position={position}
       rotation={rotation}
       scale={[1, scaleY, 1]}
-      radius={bevel}
-      smoothness={3}
-      creaseAngle={0.5}
       castShadow
       receiveShadow
     >
@@ -58,10 +58,12 @@ export function Slab({
         color={color}
         roughness={roughness}
         metalness={metalness}
-        span={span}
+        worldUnits
         relief={relief}
+        extents={[size[0] / 2, size[1] / 2, size[2] / 2]}
+        wear={wear}
       />
-    </RoundedBox>
+    </mesh>
   );
 }
 
@@ -86,25 +88,18 @@ export function Cushion({
 }: CushionProps) {
   const [w, h, d] = size;
   const radius = Math.min(h * (0.32 + plump * 0.16), w * 0.4, d * 0.4);
+  const geometry = useRoundedBox(w, h, d, radius, 4);
   return (
-    <RoundedBox
-      args={[w, h, d]}
-      position={position}
-      rotation={rotation}
-      radius={radius}
-      smoothness={4}
-      creaseAngle={1.2}
-      castShadow
-      receiveShadow
-    >
+    <mesh geometry={geometry} position={position} rotation={rotation} castShadow receiveShadow>
       <Surface
         kind={kind}
         color={color}
         roughness={kind === "leather" ? 0.55 : 0.92}
-        span={Math.max(w, d)}
+        worldUnits
         relief={kind === "leather" ? 1.2 : 0.9}
+        wear={0}
       />
-    </RoundedBox>
+    </mesh>
   );
 }
 
@@ -136,9 +131,15 @@ export function Leg({
   const [x, y, z] = position;
   const tiltX = splay === 0 ? 0 : Math.sign(z) * -splay;
   const tiltZ = splay === 0 ? 0 : Math.sign(x) * splay;
+  const geometry = useCylinder(top, bottom, height, 16);
   return (
-    <mesh position={[x, y, z]} rotation={[tiltX, 0, tiltZ]} castShadow receiveShadow>
-      <cylinderGeometry args={[top, bottom, height, 16, 1]} />
+    <mesh
+      geometry={geometry}
+      position={[x, y, z]}
+      rotation={[tiltX, 0, tiltZ]}
+      castShadow
+      receiveShadow
+    >
       <Surface
         kind={kind}
         color={color}
@@ -197,9 +198,9 @@ export function Tube({
   roughness = 0.22,
   kind = "metal",
 }: TubeProps) {
+  const geometry = useCylinder(radius, radius, length, 14);
   return (
-    <mesh position={position} rotation={rotation} castShadow receiveShadow>
-      <cylinderGeometry args={[radius, radius, length, 14, 1]} />
+    <mesh geometry={geometry} position={position} rotation={rotation} castShadow receiveShadow>
       <Surface
         kind={kind}
         color={color}
@@ -575,7 +576,7 @@ export function Reflective({
         color={color}
         roughness={roughness}
         metalness={metalness}
-        envMapIntensity={2.6}
+        envMapIntensity={1.5}
       />
     </mesh>
   );

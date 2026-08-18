@@ -5,7 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { ContactShadows, Grid, OrbitControls } from "@react-three/drei";
 import { ACESFilmicToneMapping, Vector3 } from "three";
 import { bounds } from "@layra/geometry";
-import { activeRoom, currentWallSettings,
+import { activeRoom, currentWallSettings, findFloorMaterial,
 } from "@layra/state";
 import { editor, useEditor } from "@/state/editor";
 import { Walls } from "./Walls";
@@ -23,6 +23,8 @@ import { Dimensions } from "./Dimensions";
 import { MeasureTool } from "./MeasureTool";
 import { RoomTrim } from "./RoomTrim";
 import { RoomEnvironment } from "./RoomEnvironment";
+import { WALL_FINISHES } from "./finishes";
+import { Postprocessing } from "./Postprocessing";
 import { WalkthroughController } from "./WalkthroughController";
 
 /** The room being edited, which follows an in-progress vertex drag. */
@@ -182,6 +184,12 @@ export default function Scene() {
   // Frame the shadow camera to the room so shadows stay sharp.
   const shadowRadius = Math.max(extent.size.x, extent.size.z, 4);
   const lightingPreset = useEditor((state) => state.lightingPreset);
+  const floorBounce = useEditor(
+    (state) => findFloorMaterial(activeRoom(state).floorMaterial).color,
+  );
+  const wallBounce = useEditor(
+    (state) => WALL_FINISHES[activeRoom(state).wallMaterial ?? "plaster"].color,
+  );
   const lighting = {
     daylight: {
       ambient: 0.16,
@@ -193,19 +201,17 @@ export default function Scene() {
       point: 0,
       pointColor: "#ffffff",
       background: "#1b1b1e",
-      exposure: 1,
     },
     warm: {
-      ambient: 0.1,
-      key: 1.2,
+      ambient: 0.12,
+      key: 1.4,
       keyColor: "#ffcf9c",
       keyPosition: [-4, 12, 3] as [number, number, number],
-      fill: 0.12,
+      fill: 0.14,
       fillColor: "#c98f9c",
-      point: 1.6,
+      point: 1.85,
       pointColor: "#ffb45b",
       background: "#1d1715",
-      exposure: 1.15,
     },
     studio: {
       ambient: 0.2,
@@ -217,7 +223,6 @@ export default function Scene() {
       point: 0,
       pointColor: "#ffffff",
       background: "#15181f",
-      exposure: 1,
     },
   }[lightingPreset];
 
@@ -272,7 +277,7 @@ export default function Scene() {
       // PCFSoftShadowMap: a hard-edged sun wedge across a floor plan reads as a
       // rendering artefact rather than as light.
       shadows="soft"
-      gl={{ antialias: true, toneMapping: ACESFilmicToneMapping, toneMappingExposure: lighting.exposure }}
+      gl={{ antialias: true, toneMapping: ACESFilmicToneMapping }}
       camera={{ position: [7, 6, 8], fov: 45, near: 0.1, far: 200 }}
       style={{ background: lighting.background }}
       // Fires only when a click hit no mesh, unlike a raw canvas pointerup.
@@ -281,7 +286,7 @@ export default function Scene() {
         editor().selectVertex(null);
       }}
     >
-      <RoomEnvironment preset={lightingPreset} />
+      <RoomEnvironment preset={lightingPreset} floorColor={floorBounce} wallColor={wallBounce} />
       <ambientLight intensity={lighting.ambient} />
       <directionalLight
         position={lighting.keyPosition}
@@ -345,6 +350,8 @@ export default function Scene() {
         <MeasureTool />
       </Suspense>
       <DrawController />
+
+      <Postprocessing radius={shadowRadius} />
 
       <Grid
         infiniteGrid

@@ -5,8 +5,8 @@ import type { ThreeEvent } from "@react-three/fiber";
 import type { Vec2 } from "@layra/types";
 import { triangulateFloor } from "@layra/geometry";
 import { findFloorMaterial } from "@layra/state";
+import { FLOOR_TEXTURE } from "./finishes";
 import { Surface } from "./Surface";
-import type { SurfaceKind } from "./textures";
 import { useMeshGeometry } from "./useMeshGeometry";
 
 interface FloorProps {
@@ -16,14 +16,6 @@ interface FloorProps {
   onPointerDown?: (event: ThreeEvent<PointerEvent>) => void;
 }
 
-const FLOOR_TEXTURE: Record<string, SurfaceKind> = {
-  default: "plaster",
-  oak: "floorboard",
-  walnut: "floorboard",
-  concrete: "concrete",
-  tile: "tile",
-  carpet: "carpet",
-};
 
 export function Floor({ polygon, thickness, material, onPointerDown }: FloorProps) {
   const finish = findFloorMaterial(material);
@@ -41,6 +33,7 @@ export function Floor({ polygon, thickness, material, onPointerDown }: FloorProp
         roughness={finish.roughness}
         worldUnits
         relief={finish.id === "carpet" ? 1.6 : 1}
+        weathering={0.16}
         envMapIntensity={finish.id === "tile" ? 1.4 : 0.9}
       />
     </mesh>

@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { Vector2, type Side } from "three";
 import { surfaceMaps, TILE_SIZE, type SurfaceKind } from "./textures";
+import { weather } from "./weather";
 
 interface SurfaceProps {
   kind: SurfaceKind;
@@ -13,6 +14,11 @@ interface SurfaceProps {
   span?: number;
   /** Set when the mesh already carries UVs measured in metres. */
   worldUnits?: boolean;
+  /** World-space wash that hides the tile repeat. Worth it on floors and walls. */
+  weathering?: number;
+  /** Half-extents of a box, enabling rubbed-back edges. */
+  extents?: [number, number, number];
+  wear?: number;
   /** Multiplies the texture's own bump depth. */
   relief?: number;
   envMapIntensity?: number;
@@ -35,6 +41,9 @@ export function Surface({
   metalness = 0,
   span = 1,
   worldUnits = false,
+  weathering = 0,
+  extents,
+  wear = 0,
   relief = 1,
   envMapIntensity = 1,
   transparent,
@@ -49,9 +58,26 @@ export function Surface({
     [kind, span, worldUnits],
   );
   const normalScale = useMemo(() => new Vector2(relief, relief), [relief]);
+  // Keyed on the values, not the array: callers build a fresh extents tuple on
+  // every render and the patch must not be rebuilt for that.
+  const extentKey = extents ? extents.join(",") : "";
+  const patch = useMemo(
+    () =>
+      weathering > 0 || (extentKey && wear > 0)
+        ? weather({
+            weathering,
+            extents: extentKey ? (extentKey.split(",").map(Number) as [number, number, number]) : undefined,
+            wear,
+          })
+        : null,
+    [weathering, wear, extentKey],
+  );
 
   return (
     <meshStandardMaterial
+      key={patch?.customProgramCacheKey() ?? "plain"}
+      onBeforeCompile={patch?.onBeforeCompile}
+      customProgramCacheKey={patch?.customProgramCacheKey}
       color={color}
       roughness={roughness}
       metalness={metalness}

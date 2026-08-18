@@ -98,14 +98,50 @@ Pointer picking raycasts against the Y=0 plane directly - no collider mesh.
 OrbitControls listens on the canvas itself, so it is disabled during a handle
 drag rather than relying on `stopPropagation`.
 
-## Not built yet
+## Rendering
 
-`Opening` (doors and windows) and `Placement`/`CatalogItem` (furniture) are
-defined in `@layra/types` and round-trip through save and load, but nothing
-authors them and no geometry is cut for them.
+Nothing is loaded from disk. Every surface, every piece of furniture and every
+door and window is built at runtime.
+
+**Materials.** `textures.ts` generates tileable albedo, normal and roughness
+maps for fifteen surface families - wood, floorboard, fabric, leather, plaster,
+brick, carpet, tile, marble, metal, ceramic, paper, foliage. The value-noise
+lattice takes separate cell counts per axis, so grain and brushing stretch
+along one direction instead of swirling. Wood and floorboards render at 512;
+everything else at 256. `Surface` wraps a `meshStandardMaterial` around them and
+sets the tiling density from the surface's real-world size.
+
+UVs are measured in metres throughout, so one texture tile covers a fixed
+physical size whatever it is wrapped around. Wall and floor meshes get theirs
+from `useMeshGeometry`, which projects each vertical face onto its own
+horizontal tangent - projecting onto the nearest axis would squash a diagonal
+wall by the cosine of its angle. Box parts get theirs from `geometry.ts`.
+
+**Weathering.** `weather.ts` patches the standard material with two things a
+tiling texture cannot carry: a world-space wash that hides the repeat and
+burnishes traffic lanes, and a lightening along box edges. Both travel as
+uniforms rather than baked constants, because three caches compiled programs by
+cache key and interpolating each slab's extents into the source would mint a
+separate program per piece of furniture.
+
+**Geometry.** `parts.tsx` holds the primitives - bevelled slabs, cushions,
+tapered legs, revolved lathe profiles, drawer fronts, shaker doors, basins,
+frames - and `furniture/models.tsx` and `openings/models.tsx` assemble the
+catalog and the openings from them. `geometry.ts` ref-counts the buffers, so a
+sofa's four legs, a dresser's six drawer fronts and six identical dining chairs
+all share one. Disposal is deferred a tick because Strict Mode unmounts and
+immediately remounts.
+
+**Light.** `RoomEnvironment` bakes a room-shaped image-based light from emissive
+panels into a cube map once per lighting preset, taking the room's own floor and
+wall colours for its bounce panels. No HDR is fetched, so it works offline. Each
+window carries a rect area light for daylight fill; the directional key still
+draws the hard sun patch through the same hole. `Postprocessing` adds N8AO,
+which is what grounds furniture on the floor - it turns itself off on software
+rasterisers, where a full-screen pass is unusable.
 
 ## Stack
 
-Next.js 16, React 19, React Three Fiber 9 with three.js, Zustand 5, Tailwind
-CSS 4, Turborepo, Vitest, TypeScript in strict mode with
+Next.js 16, React 19, React Three Fiber 9 with three.js, drei, postprocessing,
+Zustand 5, Tailwind CSS 4, Turborepo, Vitest, TypeScript in strict mode with
 `noUncheckedIndexedAccess`.

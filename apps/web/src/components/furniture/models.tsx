@@ -765,16 +765,27 @@ export function FurnitureModel({
 
     case "wall-mirror": {
       const bar = 0.06;
+      // Drawn from its underside up, so mountHeight means the same thing here
+      // as it does for a wall shelf.
+      const mid = h / 2;
       return (
         <group>
-          <Slab size={[w - bar, h - bar, 0.016]} position={[0, 0, 0.004]} kind="darkWood" color={p.darkWood} radius={0.004} roughness={0.5} />
-          <Reflective size={[w - bar * 2, h - bar * 2, 0.006]} position={[0, 0, -0.008]} color="#c6d6de" />
+          <Slab size={[w - bar, h - bar, 0.016]} position={[0, mid, 0.004]} kind="darkWood" color={p.darkWood} radius={0.004} roughness={0.5} />
+          {/* Not a true mirror: it reflects the baked environment, not the room,
+              so it is cooled and damped to read as glass rather than bronze. */}
+          <Reflective
+            size={[w - bar * 2, h - bar * 2, 0.006]}
+            position={[0, mid, -0.008]}
+            color="#e2ecf2"
+            roughness={0.05}
+            metalness={0.82}
+          />
           <Frame
             width={w}
             height={h}
             bar={bar}
             thickness={0.05}
-            position={[0, 0, -0.011]}
+            position={[0, mid, -0.011]}
             color={p.wood}
             kind="darkWood"
             roughness={0.45}

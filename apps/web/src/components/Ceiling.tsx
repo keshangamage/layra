@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import type { CeilingMaterial, Vec2 } from "@layra/types";
 import { triangulatePolygon } from "@layra/geometry";
 import { DoubleSide } from "three";
+import { CEILING_FINISHES } from "./finishes";
 import { Surface } from "./Surface";
-import type { SurfaceKind } from "./textures";
 import { useMeshGeometry } from "./useMeshGeometry";
 
 interface CeilingProps {
@@ -17,12 +17,7 @@ interface CeilingProps {
 export function Ceiling({ polygon, height, material = "painted" }: CeilingProps) {
   const data = useMemo(() => triangulatePolygon(polygon), [polygon]);
   const geometry = useMeshGeometry(data);
-  const finishes: Record<CeilingMaterial, { color: string; roughness: number; kind: SurfaceKind }> = {
-    painted: { color: "#f3eee4", roughness: 0.88, kind: "plaster" },
-    wood: { color: "#8b684b", roughness: 0.62, kind: "floorboard" },
-    concrete: { color: "#92918c", roughness: 0.96, kind: "concrete" },
-  };
-  const finish = finishes[material];
+  const finish = CEILING_FINISHES[material];
 
   if (polygon.length < 3) return null;
   return (
@@ -33,6 +28,7 @@ export function Ceiling({ polygon, height, material = "painted" }: CeilingProps)
         roughness={finish.roughness}
         worldUnits
         side={DoubleSide}
+        weathering={0.07}
         envMapIntensity={0.7}
       />
     </mesh>
