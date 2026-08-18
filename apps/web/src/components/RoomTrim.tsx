@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { Wall } from "@layra/types";
 import { distance } from "@layra/geometry";
+import { Surface } from "./Surface";
 
 interface RoomTrimProps {
   walls: readonly Wall[];
@@ -81,9 +82,11 @@ export function RoomTrim({ walls }: RoomTrimProps) {
             receiveShadow
           >
             <boxGeometry args={[segment.length, baseboard ? 0.14 : 0.1, 0.055]} />
-            <meshStandardMaterial
+            <Surface
+              kind="wood"
               color={baseboard ? "#6b4530" : "#8b6a4d"}
               roughness={0.62}
+              span={segment.length}
             />
           </mesh>
         );
