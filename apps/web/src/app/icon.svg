@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="7" fill="#d97706"/>
+  <!-- The app's core gesture: a floor plate with two walls raised along it.
+       The plate is faint so that at 16px the corner still carries the mark. -->
+  <rect x="6" y="4" width="22" height="24" fill="#fff" fill-opacity=".26"/>
+  <g fill="#fff">
+    <rect x="6" y="4" width="6" height="24"/>
+    <rect x="6" y="22" width="22" height="6"/>
+  </g>
+</svg>
