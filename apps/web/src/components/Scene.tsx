@@ -2,8 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { ContactShadows, Grid, OrbitControls } from "@react-three/drei";
-import { ACESFilmicToneMapping, Vector3 } from "three";
+import { Grid, OrbitControls } from "@react-three/drei";
+import { ACESFilmicToneMapping, Object3D, Vector3 } from "three";
 import { bounds } from "@layra/geometry";
 import { activeRoom, currentWallSettings, findFloorMaterial,
 } from "@layra/state";
@@ -24,7 +24,7 @@ import { MeasureTool } from "./MeasureTool";
 import { RoomTrim } from "./RoomTrim";
 import { RoomEnvironment } from "./RoomEnvironment";
 import { WALL_FINISHES } from "./finishes";
-import { Postprocessing } from "./Postprocessing";
+import { Grounding } from "./Grounding";
 import { WalkthroughController } from "./WalkthroughController";
 
 /** The room being edited, which follows an in-progress vertex drag. */
@@ -181,8 +181,20 @@ export default function Scene() {
     [polygon, wallPoints],
   );
 
-  // Frame the shadow camera to the room so shadows stay sharp.
-  const shadowRadius = Math.max(extent.size.x, extent.size.z, 4);
+  // Frame the shadow camera to the room so shadows stay sharp. Half the span
+  // plus a margin: the frustum is measured from the light's target outwards, so
+  // using the full span made it four times larger than it needed to be.
+  const shadowRadius = Math.max(extent.size.x, extent.size.z) / 2 + 1.5;
+
+  // A directional light aims at its target, which defaults to the world origin.
+  // Without this the shadow frustum sits at 0,0 whatever the room does, and a
+  // room drawn away from the origin falls outside it - which smears its
+  // shadows across the floor as ghost copies whenever anything moves.
+  const lightTarget = useMemo(() => new Object3D(), []);
+  useEffect(() => {
+    lightTarget.position.set(extent.center.x, 0, extent.center.z);
+    lightTarget.updateMatrixWorld();
+  }, [lightTarget, extent.center.x, extent.center.z]);
   const lightingPreset = useEditor((state) => state.lightingPreset);
   const floorBounce = useEditor(
     (state) => findFloorMaterial(activeRoom(state).floorMaterial).color,
@@ -288,8 +300,14 @@ export default function Scene() {
     >
       <RoomEnvironment preset={lightingPreset} floorColor={floorBounce} wallColor={wallBounce} />
       <ambientLight intensity={lighting.ambient} />
+      <primitive object={lightTarget} />
       <directionalLight
-        position={lighting.keyPosition}
+        position={[
+          extent.center.x + lighting.keyPosition[0],
+          lighting.keyPosition[1],
+          extent.center.z + lighting.keyPosition[2],
+        ]}
+        target={lightTarget}
         intensity={lighting.key}
         color={lighting.keyColor}
         castShadow
@@ -317,16 +335,10 @@ export default function Scene() {
         distance={Math.max(extent.size.x, extent.size.z, 5) * 2}
         decay={2}
       />
-      <ContactShadows
-        position={[extent.center.x, 0.006, extent.center.z]}
-        opacity={0.45}
+      <Grounding
+        radius={shadowRadius}
+        center={[extent.center.x, 0.006, extent.center.z]}
         scale={Math.max(extent.size.x, extent.size.z, 5) * 1.4}
-        blur={2}
-        // Short range on purpose: this is contact darkening under furniture, so
-        // anything as tall as a wall must not register and cast a slab of grey.
-        far={0.7}
-        resolution={1024}
-        color="#150f0a"
       />
 
       <OtherRooms />
@@ -350,8 +362,6 @@ export default function Scene() {
         <MeasureTool />
       </Suspense>
       <DrawController />
-
-      <Postprocessing radius={shadowRadius} />
 
       <Grid
         infiniteGrid
